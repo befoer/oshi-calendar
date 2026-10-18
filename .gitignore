@@ -1,0 +1,12 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.local
+*.tsbuildinfo
+huiqi-server.log
+huiqi-launcher.log
+
+# 本机工具配置与构建产物
+.claude/
+*.exe

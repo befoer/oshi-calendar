@@ -1,0 +1,162 @@
+/* ============================================================
+   推日 · 设计令牌
+   主题名：薰衣草雾（日间）/ 夜雾（夜间）
+   取色原则：偏冷的薰衣草灰白打底，靛紫负责操作与选中，
+   玫瑰色降低饱和只用来标记“生日”，渐变只出现在极浅的底色里。
+   语义色：生日=玫瑰 · 节日=雾蓝 · 自定义=琥珀 · 创作=堇紫 · 完成=青绿
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- 字体 ---- */
+  --font-ui:
+    "Noto Sans SC", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI",
+    "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "M PLUS Rounded 1c", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+  --font-hand: "LXGW WenKai Lite", "LXGW WenKai", var(--font-ui);
+
+  /* ---- 画布与表面 ---- */
+  --bg: #f6f5fb;
+  --bg-tint: #ecebf6;
+  --surface: #ffffff;
+  --surface-2: #faf9fd;
+  --surface-3: #f0eff8;
+  --overlay: rgba(28, 25, 52, 0.48);
+
+  /* ---- 墨色文字 ---- */
+  --ink: #25223f;
+  --text: #3d3a5a;
+  --muted: #6a6888;
+  --faint: #9d9bb8;
+
+  /* ---- 描边 ---- */
+  --line: rgba(37, 34, 63, 0.09);
+  --line-strong: rgba(37, 34, 63, 0.18);
+
+  /* ---- 主色：靛紫（操作 · 选中 · 链接 · 焦点） ---- */
+  --primary: #5a55d8;
+  --primary-hover: #4a45c8;
+  --primary-soft: #eceafc;
+  --primary-ink: #4540c4;
+  --on-primary: #ffffff;
+  --action: #5a55d8;
+  --action-hover: #4a45c8;
+  --on-action: #ffffff;
+
+  /* ---- 点缀：低饱和玫瑰 ---- */
+  --accent: #f9a8d4;
+  --accent-strong: #f472b6;
+  --accent-deep: #db2777;
+  --accent-soft: #fdeaf4;
+  --on-accent: #4a0d2b;
+  --star: #e0a21a;
+
+  /* ---- 语义色 ---- */
+  --c-birthday: #f472b6;
+  --c-birthday-soft: #fdeaf4;
+  --c-birthday-ink: #be185d;
+  --c-holiday: #4a9ec2;
+  --c-holiday-soft: #e3f1f8;
+  --c-holiday-ink: #226b8a;
+  --c-custom: #d29a3a;
+  --c-custom-soft: #fbf1dc;
+  --c-custom-ink: #86600f;
+  --c-task: #7d71de;
+  --c-task-soft: #eeecfb;
+  --c-task-ink: #4f44b8;
+  --c-done: #3aa987;
+  --c-done-soft: #def3ec;
+  --c-done-ink: #1f7a5e;
+  --c-danger: #e0545a;
+  --c-danger-soft: #fdeaea;
+  --c-danger-ink: #b0262c;
+
+  /* ---- 渐变：只允许极浅的底色渐变 ---- */
+  --grad-dusk: linear-gradient(135deg, #f3effc 0%, #eef0fb 55%, #e9f3f9 100%);
+  --glow-a: rgba(122, 112, 220, 0.07);
+  --glow-b: rgba(90, 160, 200, 0.06);
+
+  /* ---- 阴影（带一点靛色，柔和） ---- */
+  --shadow-sm: 0 1px 2px rgba(37, 34, 70, 0.06), 0 1px 1px rgba(37, 34, 70, 0.04);
+  --shadow-md:
+    0 8px 22px -8px rgba(60, 52, 140, 0.16), 0 2px 5px rgba(37, 34, 70, 0.05);
+  --shadow-lg: 0 28px 64px -16px rgba(50, 44, 120, 0.32);
+  --ring: 0 0 0 3px rgba(90, 85, 216, 0.24);
+
+  /* ---- 圆角 ---- */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* ---- 布局尺寸 ---- */
+  --rail-w: 88px;
+  --topbar-h: 68px;
+  --content-max: 1360px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #131220;
+  --bg-tint: #1a1930;
+  --surface: #1b1a2c;
+  --surface-2: #222136;
+  --surface-3: #2b2a42;
+  --overlay: rgba(6, 5, 18, 0.66);
+
+  --ink: #f1effa;
+  --text: #d6d3ec;
+  --muted: #a09dc0;
+  --faint: #75729a;
+
+  --line: rgba(190, 186, 255, 0.12);
+  --line-strong: rgba(190, 186, 255, 0.24);
+
+  --primary: #9892f5;
+  --primary-hover: #aaa5ff;
+  --primary-soft: rgba(152, 146, 245, 0.17);
+  --primary-ink: #bcb8ff;
+  --on-primary: #151330;
+  --action: #9892f5;
+  --action-hover: #aaa5ff;
+  --on-action: #151330;
+
+  --accent: #f9a8d4;
+  --accent-strong: #f58cc0;
+  --accent-deep: #f9a8d4;
+  --accent-soft: rgba(245, 140, 192, 0.17);
+  --on-accent: #3b0a22;
+  --star: #f2b73a;
+
+  --c-birthday: #f58cc0;
+  --c-birthday-soft: rgba(245, 140, 192, 0.16);
+  --c-birthday-ink: #fbb6d6;
+  --c-holiday: #6bb6d8;
+  --c-holiday-soft: rgba(107, 182, 216, 0.14);
+  --c-holiday-ink: #98d0e8;
+  --c-custom: #e0b261;
+  --c-custom-soft: rgba(224, 178, 97, 0.15);
+  --c-custom-ink: #ecc98a;
+  --c-task: #a79dff;
+  --c-task-soft: rgba(167, 157, 255, 0.17);
+  --c-task-ink: #c4bdff;
+  --c-done: #5fcaa6;
+  --c-done-soft: rgba(95, 202, 166, 0.14);
+  --c-done-ink: #8edcc0;
+  --c-danger: #ff7076;
+  --c-danger-soft: rgba(255, 112, 118, 0.16);
+  --c-danger-ink: #ffa3a7;
+
+  --grad-dusk: linear-gradient(135deg, #251f3c 0%, #1c1d36 55%, #172433 100%);
+  --glow-a: rgba(152, 146, 245, 0.08);
+  --glow-b: rgba(107, 182, 216, 0.06);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 10px 26px -8px rgba(0, 0, 0, 0.6), 0 2px 5px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 30px 70px -14px rgba(0, 0, 0, 0.7);
+  --ring: 0 0 0 3px rgba(152, 146, 245, 0.4);
+}
