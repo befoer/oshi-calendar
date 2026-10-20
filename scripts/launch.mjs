@@ -128,8 +128,8 @@ try {
     });
     child.unref();
     closeSync(out);
-    for (let i = 0; i < 40; i++) {
-      await new Promise((r) => setTimeout(r, 200));
+    for (let i = 0; i < 160; i++) {
+      await new Promise((r) => setTimeout(r, 50));
       state = await health();
       if (state === "app") break;
     }
@@ -139,22 +139,24 @@ try {
   if (process.env.HUIQI_NO_OPEN !== "1") {
     const buildId = JSON.parse(readFileSync("dist/build.json", "utf8")).buildId;
     const launchURL = `${url}/?__huiqi_launch=${encodeURIComponent(buildId)}`;
-    // cmd.exe's START syntax cannot use Node's normal argument quoting.
-    // ShellExecute via PowerShell opens the registered browser and reports errors.
-    const browser = spawnSync(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `Start-Process -FilePath '${launchURL}' -ErrorAction Stop`,
-      ],
-      {
-        windowsHide: true,
-        encoding: "utf8",
-        timeout: 15000,
-      },
+    // rundll32 hands the URL to the default browser directly; a PowerShell process
+    // costs ~1.5 s. It never reports failure, so PowerShell stays as the fallback.
+    let browser = spawnSync(
+      "rundll32.exe",
+      ["url.dll,FileProtocolHandler", launchURL],
+      { windowsHide: true, encoding: "utf8", timeout: 15000 },
     );
+    if (browser.error)
+      browser = spawnSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `Start-Process -FilePath '${launchURL}' -ErrorAction Stop`,
+        ],
+        { windowsHide: true, encoding: "utf8", timeout: 15000 },
+      );
     if (browser.error || browser.status !== 0)
       throw new Error(
         `The calendar is running at ${url}, but the browser could not open. Open this address manually. ${browser.error?.message || browser.stderr?.trim() || "Check the default browser in Windows Settings."}`,

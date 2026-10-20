@@ -1,13 +1,16 @@
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
-import { handleWebTools, webVersion } from "./web-tools.mjs";
 import { createHash } from "node:crypto";
 const serverVersion = createHash("sha256")
   .update(await readFile(new URL("./serve.mjs", import.meta.url)))
   .update(await readFile(new URL("./web-tools.mjs", import.meta.url)))
   .update(await readFile(new URL("./network.mjs", import.meta.url)))
   .digest("hex");
+// cheerio / undici 加载要大半秒：先把端口监听起来，网页工具在后台加载，用到时再等
+const webTools = import("./web-tools.mjs");
+let webVersion = null;
+webTools.then((m) => (webVersion = m.webVersion)).catch(() => {});
 const root = resolve("dist");
 const port = Number(process.env.HUIQI_PORT || 4173);
 const mime = {
@@ -40,7 +43,7 @@ createServer(async (req, res) => {
       );
       return;
     }
-    if (await handleWebTools(req, res)) return;
+    if (await (await webTools).handleWebTools(req, res)) return;
     const file = resolve(root, "." + path);
     if (file !== root && !file.startsWith(root + sep)) {
       res.writeHead(403);
