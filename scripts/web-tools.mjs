@@ -7,6 +7,8 @@ import { fetch, EnvHttpProxyAgent, ProxyAgent } from "undici";
 import { resolveNetwork } from "./network.mjs";
 
 export const webVersion = "web-tools-1";
+// Bangumi 要求非浏览器请求带「开发者 ID/应用名」；项目私有，不附主页地址
+const characterUserAgent = "befoer/oshi-calendar/1.0";
 const environmentDispatcher = new EnvHttpProxyAgent({
   connect: {
     lookup(host, options, callback) {
@@ -663,7 +665,7 @@ async function handleCharacterTools(req, res, path) {
           AbortSignal.timeout(15000),
         ]),
         headers: {
-          "User-Agent": "Huiqi/1.0 (Character creation calendar)",
+          "User-Agent": characterUserAgent,
           Accept: image ? "image/*" : "application/json",
           ...(init.body ? { "Content-Type": "application/json" } : {}),
         },
