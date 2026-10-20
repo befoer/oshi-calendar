@@ -131,6 +131,44 @@ async function searchAniListName(name: string): Promise<BangumiCharacter[]> {
     .parse(data.Page?.characters)
     .map(normalizeAniList);
 }
+const sameName = (a: string, b: string) =>
+  a.normalize("NFKC").replace(/s+/g, "") === b.normalize("NFKC").replace(/s+/g, "");
+/**
+ * 用日文原名在 AniList 上查英文名（AniList 能按日文名搜到角色，如 コロンビア → Columbia）。
+ * 只接受原名完全一致的结果，查不到或失败都返回 null，不弹网络提示。
+ */
+export async function anilistEnglishName(
+  native: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  if (!native.trim() || native.length > 100) return null;
+  try {
+    const data = await externalJSON(
+      "AniList",
+      "https://graphql.anilist.co",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          query: `query($search: String!) { Page(perPage: 10) { characters(search: $search) { id name { full native } } } }`,
+          variables: { search: native.trim() },
+        }),
+        signal,
+      },
+      { quiet: true },
+    );
+    const list = (data?.data?.Page?.characters ?? []) as {
+      name?: { full?: string | null; native?: string | null };
+    }[];
+    const hit = list.find(
+      (c) => c.name?.native && sameName(c.name.native, native.trim()),
+    );
+    const full = hit?.name?.full?.trim();
+    return full && isEnglishName(full) ? full : null;
+  } catch {
+    return null;
+  }
+}
 const isEnglishName = (value: string) =>
   /[a-z]/i.test(value) &&
   !/[\u3400-\u9fff\u3040-\u30ff]/u.test(value) &&

@@ -147,7 +147,12 @@ export function CharacterSearch({
   useEffect(() => onProvider?.(provider), [provider, onProvider]);
   const existingTag = target !== "new" ? defaultTag(target) : "";
   const existingTraits = target !== "new" ? target.traits : "";
-  const search = async () => {
+  const search = async (
+    text = query,
+    source: "bangumi" | "anilist" = provider,
+  ) => {
+    const provider = source;
+    const query = text;
     if (!query.trim()) return;
     setLoading(true);
     setError("");
@@ -329,11 +334,22 @@ export function CharacterSearch({
             aria-label="角色资料来源"
             value={provider}
             onChange={(e) => {
-              setProvider(e.target.value as "bangumi" | "anilist");
+              const next = e.target.value as "bangumi" | "anilist";
+              // AniList 只能用英文名搜：从 Bangumi 切过来时，直接用 Bangumi 已选角色（或唯一结果）的英文名
+              const from =
+                selected ??
+                (results.length === 1 ? results[0] : null);
+              const english =
+                next === "anilist" && from && from.provider !== "anilist"
+                  ? bangumiEnglishName(from)
+                  : undefined;
+              setProvider(next);
               setResults([]);
               setSelected(null);
               setError("");
-              setQuery(target === "new" ? "" : target.name);
+              const text = english ?? (target === "new" ? "" : target.name);
+              setQuery(text);
+              if (english) void search(english, next);
             }}
           >
             <option value="bangumi">Bangumi</option>

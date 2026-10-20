@@ -215,3 +215,33 @@ it("本机服务和浏览器直连都失败时，错误里带上两边的原因�
   // 只试了第一个名字：Danbooru 一轮 + AnimaDex 一轮，每轮最多 3 次本机请求
   expect(localCalls).toBeLessThanOrEqual(6);
 }, 30000);
+
+it("资料里没有英文名时，用日文原名到 AniList 查英文名再搜；Danbooru 被 403 拦下仍能走 AnimaDex", async () => {
+  const asked: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("graphql.anilist.co"))
+        return json({
+          data: {
+            Page: {
+              characters: [
+                { id: 1, name: { full: "Other", native: "別人" } },
+                { id: 152458, name: { full: "Columbia", native: "コロンビア" } },
+              ],
+            },
+          },
+        });
+      if (url.includes("danbooru")) return new Response("blocked", { status: 403 });
+      asked.push(new URL(url).searchParams.get("q") ?? "");
+      return json({
+        results: [{ slug: "columbia_(azur_lane)", name: "Columbia", tags: ["red eyes"] }],
+      });
+    }),
+  );
+  const result = await lookupCharacterTags(["哥伦比亚", "コロンビア"]);
+  expect(result.source).toBe("AnimaDex");
+  expect(asked[0]).toBe("Columbia");
+  expect(result.candidates[0].slug).toBe("columbia_(azur_lane)");
+});

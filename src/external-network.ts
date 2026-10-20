@@ -27,6 +27,8 @@ export async function externalJSON(
   source: NetworkIssue["source"],
   url: string,
   init: RequestInit = {},
+  /** quiet：补充性的查询，失败时不弹出网络问题提示 */
+  options: { quiet?: boolean } = {},
 ) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
@@ -92,7 +94,7 @@ export async function externalJSON(
     throw error;
   } finally {
     clearTimeout(timer);
-    if (issue && typeof window !== "undefined")
+    if (issue && !options.quiet && typeof window !== "undefined")
       window.dispatchEvent(
         new CustomEvent<NetworkIssue>("character-network-issue", {
           detail: issue,

@@ -1,4 +1,5 @@
 import { localCharacterService } from "./external-network";
+import { anilistEnglishName } from "./anilist";
 
 /**
  * 自动获取角色 Tag。
@@ -312,8 +313,15 @@ export async function lookupCharacterTags(
   terms: string[],
   signal?: AbortSignal,
 ): Promise<TagLookup> {
-  const names = [...new Set(terms.map((t) => t.trim()).filter(Boolean))].slice(0, 4);
+  let names = [...new Set(terms.map((t) => t.trim()).filter(Boolean))].slice(0, 4);
   if (!names.length) throw new Error("没有可用于搜索的角色名");
+  // Danbooru / AnimaDex 只认英文名：资料里没有英文名时，用日文原名到 AniList 查一个
+  if (!names.some((n) => /^[ -~]+$/.test(n) && /[a-z]/i.test(n))) {
+    const native = names.find((n) => /[぀-ヿ]/.test(n)) ?? names[0];
+    const english = await anilistEnglishName(native, signal);
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    if (english) names = [english, ...names].slice(0, 4);
+  }
   const reasons: string[] = [];
   let danbooruError = "";
   for (const term of names) {
@@ -339,7 +347,7 @@ export async function lookupCharacterTags(
   }
   reasons.push(
     danbooruError
-      ? `Danbooru：${danbooruError}`
+      ? `Danbooru：${/403/.test(danbooruError) ? "被 Cloudflare 人机校验拦下（HTTP 403），多半是当前代理节点的 IP 被拦，可换个节点" : danbooruError}`
       : "Danbooru 没有找到匹配的角色标签",
   );
   try {

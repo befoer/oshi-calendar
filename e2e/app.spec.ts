@@ -1475,6 +1475,50 @@ test("AniList中文查询先读取Bangumi英文别名，显示英文关键词并
   await expect(page.getByLabel("生日月")).toHaveValue("2");
 });
 
+test("从 Bangumi 切换到 AniList：直接用已选角色的英文名搜索", async ({ page }) => {
+  const bgm = {
+    id: 777,
+    name: "日文角色",
+    infobox: [
+      { key: "简体中文名", value: "测试角色" },
+      { key: "别名", value: [{ k: "英文名", v: "Test Character" }] },
+    ],
+  };
+  const candidate = {
+    id: 888,
+    name: { full: "Test Character", native: "测试角色", alternative: [] },
+    image: { large: null, medium: null },
+    dateOfBirth: { year: null, month: 2, day: 12 },
+    media: { nodes: [] },
+  };
+  const searched: string[] = [];
+  await page.route("https://api.bgm.tv/v0/search/**", (route) =>
+    route.fulfill({ json: { data: [bgm] } }),
+  );
+  await page.route("https://api.bgm.tv/v0/characters/777/subjects", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("https://graphql.anilist.co/**", (route) => {
+    const variables = route.request().postDataJSON().variables;
+    if (variables.search) searched.push(variables.search);
+    return route.fulfill({
+      json: { data: { Page: { characters: [candidate] }, Character: candidate } },
+    });
+  });
+  await page.goto("/");
+  await page.locator("nav").getByRole("button", { name: "角色库" }).click();
+  await page.getByRole("button", { name: "添加角色", exact: true }).click();
+  await page.getByPlaceholder("输入角色名、Bangumi ID 或链接").fill("测试角色");
+  await page.getByRole("button", { name: "搜索", exact: true }).click();
+  await page.locator(".bangumi-results .result-row").first().click();
+  await page.getByLabel("角色资料来源").selectOption("anilist");
+  await expect(
+    page.getByPlaceholder("输入英文角色名、AniList ID 或链接"),
+  ).toHaveValue("Test Character");
+  await expect(page.locator(".bangumi-results .result-row")).toHaveCount(1);
+  expect(searched).toContain("Test Character");
+});
+
 test("Bangumi 不可访问时仍有14位生日，日历显示生日事项", async ({ page }) => {
   await page.route("https://api.bgm.tv/**", (route) => route.abort());
   await page.goto("/");
