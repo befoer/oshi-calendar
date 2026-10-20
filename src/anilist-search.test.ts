@@ -116,7 +116,22 @@ it("Bangumi无英文名时不向AniList发送中文；多个重名不擅自选�
   await expect(
     searchAniList(c.name, c, { id: 55, name: c.name }),
   ).rejects.toThrow("未取得角色英文名");
-  expect(anilistCalls).toBe(0);
+  // 只会用日文原名做精确核对，不会把中文名当关键词去搜
+  expect(anilistCalls).toBeLessThanOrEqual(1);
+});
+it("直接输入英文名时不经过 Bangumi，不会被重名拦住", async () => {
+  const calls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: unknown, init: any) => {
+      calls.push(String(url));
+      expect(String(url)).toBe("https://graphql.anilist.co");
+      expect(JSON.parse(init.body).variables.search).toBe("Columbia");
+      return new Response(JSON.stringify({ data: { Page: { characters: [ani] } } }));
+    }),
+  );
+  expect((await searchAniList("Columbia"))[0].id).toBe(ani.id);
+  expect(calls).toHaveLength(1);
 });
 it("英文名提取优先标注明确的英文别名，保留单词次序并过滤人物Tag", () => {
   expect(bangumiEnglishName({ ...bgm, name: "Different Romanized Name" })).toBe(

@@ -383,6 +383,11 @@ export function CharacterSearch({
             : "请选择对应角色，点「确认关联」直接保存头像、生日和 Tag。"}
           已有手动生日和 Tag 不会被自动覆盖。
         </p>
+        <p className="muted search-tip">
+          {provider === "anilist"
+            ? "搜索小贴士：AniList 只认英文（罗马字）全名，如 Roxy Migurdia；也可以粘贴 anilist.co/character/数字 的链接或 ID。从 Bangumi 切换过来会自动带上英文名；输入中文名时，会先靠 Bangumi 里的英文名或日文原名换成英文。重名多时，对照头像、作品和生日来选。"
+            : "搜索小贴士：Bangumi 用中文名或日文名最准，如 洛琪希；也可以粘贴 bgm.tv/character/数字 的链接或 ID。名字太常见时，对照列表里的头像和生日来选；搜不到可换日文名，或切到 AniList 用英文名搜。"}
+        </p>
         <ErrorText error={error} />
         {!loading && !error && searchedOnOpen.current && !results.length && (
           <p className="muted">

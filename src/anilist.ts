@@ -207,6 +207,10 @@ export async function resolveAniListName(
   character?: Character,
   remote?: BangumiCharacter,
 ) {
+  // 直接输入的英文名就是 AniList 要的，不必先绕 Bangumi（否则 Bangumi 重名会把搜索整个拦住）。
+  // 已有 Bangumi 关联的角色（自动补生日）仍按 Bangumi 核对身份，不走这里。
+  if (!character?.bangumiId && isEnglishName(query.trim()))
+    return { name: query.trim(), bangumi: undefined as BangumiCharacter | undefined };
   let bangumi = remote?.provider !== "anilist" ? remote : undefined;
   let failure: unknown;
   if (!bangumi) {
@@ -223,10 +227,16 @@ export async function resolveAniListName(
           detailed,
         );
         if (selected) bangumi = selected;
-        else if (results.length)
+        else if (results.length) {
+          // 不擅自挑一个英文名；但日文原名完全一致的 AniList 角色可以确定是谁
+          if (!character) {
+            const exact = await anilistEnglishName(query);
+            if (exact) return { name: exact, bangumi: undefined };
+          }
           throw new Error(
-            "Bangumi 返回多个或身份不匹配的角色，请先选择正确角色，避免使用错误英文名",
+            "Bangumi 里有多个同名角色，无法确定英文名。请先在 Bangumi 里选好角色再切换过来，或直接输入英文名",
           );
+        }
       }
     } catch (error) {
       failure = error;
