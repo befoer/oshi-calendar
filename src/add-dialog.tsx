@@ -17,11 +17,11 @@ import {
   birthdayCandidate,
   mergeBangumi,
   characterSourceURL,
+  fetchBangumiWorks,
   type BangumiCharacter,
 } from "./bangumi";
 import {
   searchAniList,
-  fetchAniListCharacter,
   searchAniListLookup,
   bangumiEnglishName,
 } from "./anilist";
@@ -200,47 +200,76 @@ export function CharacterSearch({
     void search();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // 搜索结果里已有名称、头像、生日等资料：点选后立刻展开预览，
+  // 只有 Bangumi 的「出现作品」需要再请求一次，到了再补上（不再整页等待）。
+  const chooseSeq = useRef(0);
+  const [opening, setOpening] = useState<string | null>(null);
+  const [worksLoading, setWorksLoading] = useState(false);
+  const show = (detail: BangumiCharacter) => {
+    const b = birthdayCandidate(detail);
+    setTagValue({ tag: "", traits: "" });
+    setSelected(detail);
+    setFields((v) => ({
+      ...v,
+      birthday:
+        b.valid &&
+        !b.conflict &&
+        (target === "new" ||
+          (!target.birthday && target.birthdayConfidence !== "none")),
+      // 已有手动 Tag / 人物特征默认不被覆盖
+      tag: !existingTag,
+      traits: !existingTraits,
+    }));
+    if (target === "new")
+      setLinkId(
+        data.characters.find(
+          (c) =>
+            (detail.provider === "anilist"
+              ? c.anilistId === detail.id
+              : c.bangumiId === detail.id) ||
+            c.name === bgmName(detail) ||
+            c.aliases.includes(bgmName(detail)),
+        )?.id ?? "",
+      );
+  };
   const choose = async (r: BangumiCharacter) => {
     if (selected && sameCharacter(selected, r)) {
+      chooseSeq.current++;
       setSelected(null);
+      setWorksLoading(false);
       return;
     }
+    const seq = ++chooseSeq.current;
+    setError("");
+    setWorksLoading(false);
     try {
-      setLoading(true);
-      setError("");
-      const detail =
-        r.provider === "anilist"
-          ? await fetchAniListCharacter(r.id)
-          : await detailBangumi(r.id);
-      const b = birthdayCandidate(detail);
-      setTagValue({ tag: "", traits: "" });
-      setSelected(detail);
-      setFields((v) => ({
-        ...v,
-        birthday:
-          b.valid &&
-          !b.conflict &&
-          (target === "new" ||
-            (!target.birthday && target.birthdayConfidence !== "none")),
-        // 已有手动 Tag / 人物特征默认不被覆盖
-        tag: !existingTag,
-        traits: !existingTraits,
-      }));
-      if (target === "new")
-        setLinkId(
-          data.characters.find(
-            (c) =>
-              (detail.provider === "anilist"
-                ? c.anilistId === detail.id
-                : c.bangumiId === detail.id) ||
-              c.name === bgmName(detail) ||
-              c.aliases.includes(bgmName(detail)),
-          )?.id ?? "",
-        );
+      if (r.provider === "anilist") {
+        // AniList 搜索结果与详情字段相同，无需再请求
+        setOpening(null);
+        show(r);
+        return;
+      }
+      if (r.infobox) {
+        show({ ...r, works: undefined });
+        setWorksLoading(true);
+        const works = await fetchBangumiWorks(r.id);
+        if (seq !== chooseSeq.current) return;
+        setSelected((cur) => (cur && sameCharacter(cur, r) ? { ...cur, works } : cur));
+        setWorksLoading(false);
+        return;
+      }
+      setOpening(`${r.provider ?? "bgm"}-${r.id}`);
+      const detail = await detailBangumi(r.id);
+      if (seq !== chooseSeq.current) return;
+      show(detail);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "读取资料失败");
+      if (seq === chooseSeq.current) {
+        setSelected(null);
+        setWorksLoading(false);
+        setError(e instanceof Error ? e.message : "读取资料失败");
+      }
     } finally {
-      setLoading(false);
+      if (seq === chooseSeq.current) setOpening(null);
     }
   };
   // 确认关联：合并资料后直接保存，不再打开编辑器
@@ -357,6 +386,7 @@ export function CharacterSearch({
                   <button
                     className="result-row"
                     disabled={loading}
+                    aria-busy={opening === `${r.provider ?? "bgm"}-${r.id}`}
                     aria-expanded={open}
                     onClick={() => void choose(r)}
                   >
@@ -375,7 +405,13 @@ export function CharacterSearch({
                           : "生日未提供"}
                       </span>
                     </div>
-                    {open ? <ChevronDown size={17} /> : <ArrowRight size={17} />}
+                    {opening === `${r.provider ?? "bgm"}-${r.id}` ? (
+                      <Loader2 className="spin" size={17} />
+                    ) : open ? (
+                      <ChevronDown size={17} />
+                    ) : (
+                      <ArrowRight size={17} />
+                    )}
                   </button>
                   {open && selected && (
                     <div className="import-selection">
@@ -392,7 +428,11 @@ export function CharacterSearch({
                         />
                         <div className="preview-info">
                           <h3>{bgmName(selected)} · 资料预览</h3>
-                          <p>{selected.works?.join(" · ") || "作品信息未提供"}</p>
+                          <p>
+                            {worksLoading
+                              ? "正在读取出现作品…"
+                              : selected.works?.join(" · ") || "作品信息未提供"}
+                          </p>
                           <p>
                             生日原文：
                             {birthdayCandidate(selected).raw || "未提供"}
@@ -470,7 +510,7 @@ export function CharacterSearch({
                       </div>
                       <button
                         className="primary"
-                        disabled={saving}
+                        disabled={saving || worksLoading}
                         onClick={() => void confirm()}
                       >
                         <Check size={16} />
@@ -508,7 +548,7 @@ export function CharacterSearch({
           <button onClick={onClose}>关闭</button>
           <button
             className="primary"
-            disabled={!selected || saving}
+            disabled={!selected || saving || worksLoading}
             title={selected ? "" : "先在列表里点选一个角色"}
             onClick={() => void confirm()}
           >

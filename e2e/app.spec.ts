@@ -1830,6 +1830,38 @@ test("Bangumi 候选确认后导入，生日来源可查看", async ({ page }) =
   await expect(page.getByLabel("生日月")).toHaveValue("");
 });
 
+test("点选候选立刻展开预览，作品稍后补上；读取期间不能确认", async ({ page }) => {
+  const character = {
+    id: 46465,
+    name: "ロキシー・ミグルディア",
+    images: { medium: "https://lain.bgm.tv/r/400/pic/crt/l/fe/d5/46465_crt_EByBv.jpg" },
+    infobox: [{ key: "简体中文名", value: "洛琪希" }],
+  };
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route("https://api.bgm.tv/v0/**", async (route) => {
+    const url = route.request().url();
+    if (url.includes("/search/")) return route.fulfill({ json: { data: [character] } });
+    if (url.includes("/subjects")) {
+      await gate;
+      return route.fulfill({ json: [{ name_cn: "无职转生" }] });
+    }
+    return route.fulfill({ json: character });
+  });
+  await page.goto("/");
+  await page.locator("nav").getByRole("button", { name: "角色库" }).click();
+  await page.getByRole("button", { name: "添加角色", exact: true }).click();
+  await page.getByPlaceholder("输入角色名、Bangumi ID 或链接").fill("洛琪希");
+  await page.getByRole("button", { name: "搜索", exact: true }).click();
+  await page.locator(".bangumi-results .result-row").first().click();
+  await expect(page.getByText("正在读取出现作品…")).toBeVisible();
+  await expect(page.locator(".import-selection")).toBeVisible();
+  await expect(page.getByRole("button", { name: "确认关联" }).last()).toBeDisabled();
+  release();
+  await expect(page.locator(".preview-info")).toContainText("无职转生");
+  await expect(page.getByRole("button", { name: "确认关联" }).last()).toBeEnabled();
+});
+
 test("AI 工具调用保存，删除确认，操作可撤销", async ({ page }) => {
   let round = 0;
   await page.route("https://ai.example.test/**", async (route) => {

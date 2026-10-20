@@ -32,16 +32,29 @@ export async function searchBangumi(
   });
   return result.data ?? [];
 }
-export async function detailBangumi(id: number): Promise<BangumiCharacter> {
-  const c = await fetchBangumiCharacter(id);
+const worksCache = new Map<number, string[]>();
+/** 角色出现的作品（最多 6 个）；同一角色只请求一次。失败时返回空列表。 */
+export async function fetchBangumiWorks(id: number): Promise<string[]> {
+  const cached = worksCache.get(id);
+  if (cached) return cached;
   try {
     const subjects = await api(`/characters/${id}/subjects`);
-    c.works = [
+    const works = [
       ...new Set((subjects as any[]).map((s) => s.name_cn || s.name)),
     ].slice(0, 6);
+    worksCache.set(id, works);
+    return works;
   } catch {
-    c.works = [];
+    return [];
   }
+}
+export async function detailBangumi(id: number): Promise<BangumiCharacter> {
+  // 角色资料和作品互不依赖，同时请求
+  const [c, works] = await Promise.all([
+    fetchBangumiCharacter(id),
+    fetchBangumiWorks(id),
+  ]);
+  c.works = works;
   return c;
 }
 export async function fetchBangumiCharacter(
