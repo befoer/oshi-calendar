@@ -65,11 +65,18 @@ export async function externalJSON(
         if (response.ok) return await response.json();
         const result = await response.json().catch(() => null);
         if (typeof result?.error === "string") {
-          issue = {
-            source,
-            kind: "unreachable",
-            message: `${source} 浏览器直连与本地代理获取均失败。${result.error}`,
-          };
+          issue =
+            typeof result.upstreamStatus === "number"
+              ? {
+                  source,
+                  kind: "http",
+                  message: `${source} ${result.error}`,
+                }
+              : {
+                  source,
+                  kind: "unreachable",
+                  message: `${source} 浏览器直连与本地代理获取均失败。${result.error}`,
+                };
           throw new ExternalRequestError(issue);
         }
       } catch (fallbackError) {

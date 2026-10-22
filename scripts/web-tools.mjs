@@ -699,7 +699,24 @@ async function handleCharacterTools(req, res, path) {
         await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
       }
     }
-    if (!response.ok) throw new Error(`资料来源返回 HTTP ${response.status}`);
+    if (!response.ok) {
+      // 对方有回应但拒绝了（如 AniList 临时关闭 API），把对方给的原因带回去，不当成网络问题
+      let detail = "";
+      try {
+        const text = (await response.text()).slice(0, 4000);
+        const data = JSON.parse(text);
+        detail = String(
+          data?.errors?.[0]?.message || data?.message || data?.error || "",
+        ).slice(0, 200);
+      } catch {
+        /* 非 JSON（如 Cloudflare 校验页） */
+      }
+      reply(502, {
+        error: `资料来源返回 HTTP ${response.status}${detail ? `：${detail}` : ""}`,
+        upstreamStatus: response.status,
+      });
+      return true;
+    }
     const mime = response.headers.get("content-type") || "";
     if (image && !/^image\/(?:png|jpeg|webp|gif)(?:;|$)/i.test(mime))
       throw new Error("头像来源未返回支持的图片");

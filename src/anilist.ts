@@ -47,12 +47,21 @@ const aniSchema = z.object({
     .nullable()
     .optional(),
 });
-async function queryAniList(query: string, variables: Record<string, unknown>) {
-  const response = await externalJSON("AniList", "https://graphql.anilist.co", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+async function queryAniList(
+  query: string,
+  variables: Record<string, unknown>,
+  quiet = false,
+) {
+  const response = await externalJSON(
+    "AniList",
+    "https://graphql.anilist.co",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ query, variables }),
+    },
+    { quiet },
+  );
   if (response.errors?.length)
     throw new Error(
       `AniList：${response.errors.map((e: { message?: string }) => e.message || "查询失败").join("；")}`,
@@ -95,10 +104,11 @@ export function normalizeAniList(input: unknown): BangumiCharacter {
     ],
   };
 }
-export async function fetchAniListCharacter(id: number) {
+export async function fetchAniListCharacter(id: number, quiet = false) {
   const data = await queryAniList(
     `query($id: Int!) { Character(id: $id) { ${characterFields} } }`,
     { id },
+    quiet,
   );
   const result = normalizeAniList(data.Character);
   if (result.id !== id) throw new Error("AniList 返回的角色 ID 不匹配");
@@ -121,10 +131,14 @@ export async function searchAniListLookup(
   const resolved = await resolveAniListName(query, character, bangumi);
   return { ...resolved, results: await searchAniListName(resolved.name) };
 }
-async function searchAniListName(name: string): Promise<BangumiCharacter[]> {
+async function searchAniListName(
+  name: string,
+  quiet = false,
+): Promise<BangumiCharacter[]> {
   const data = await queryAniList(
     `query($search: String!) { Page(perPage: 10) { characters(search: $search) { ${characterFields} } } }`,
     { search: name },
+    quiet,
   );
   return z
     .array(z.unknown())
@@ -308,12 +322,13 @@ export async function findAniListFallback(
   character: Character,
   bangumi?: BangumiCharacter,
 ) {
-  if (character.anilistId) return fetchAniListCharacter(character.anilistId);
+  // 后台补资料用的备用来源：AniList 出问题时不弹窗打扰（Bangumi 本身失败仍会提示）
+  if (character.anilistId) return fetchAniListCharacter(character.anilistId, true);
   const lookup = character.bangumiId
     ? knownLookups.get(character.bangumiId)
     : undefined;
   const resolved = await resolveAniListName(character.name, character, bangumi);
-  const candidates = await searchAniListName(resolved.name);
+  const candidates = await searchAniListName(resolved.name, true);
   const remoteAliases = resolved.bangumi?.infobox?.find(
     (field) => field.key === "别名",
   )?.value;
