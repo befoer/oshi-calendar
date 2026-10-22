@@ -59,6 +59,7 @@ import {
   type Occurrence,
 } from "./calendar";
 import { syncBirthdays, type BangumiCharacter } from "./bangumi";
+import { quietNetwork } from "./external-network";
 import { type NetworkIssue } from "./external-network";
 import {
   loadConfig,
@@ -177,19 +178,9 @@ export default function App() {
           launchURL.searchParams.delete("__huiqi_launch");
           window.history.replaceState(null, "", launchURL.href);
         }
+        // 启动时在后台静默补生日：连不上也不提示，用户主动搜索或在设置里重试时才提示
         if (navigator.onLine)
-          void syncBirthdays()
-            .then((result) => {
-              if (result.failed)
-                setNotice(
-                  `Bangumi 生日获取失败：${result.errors.join("；")}。已核对的内置生日仍可查看，可在设置中重试。`,
-                );
-            })
-            .catch((e) =>
-              setNotice(
-                `生日获取失败：${e instanceof Error ? e.message : "请在设置中重试"}`,
-              ),
-            );
+          void quietNetwork(() => syncBirthdays()).catch(() => {});
       })
       .catch((e) => setFatal(String(e)));
     const update = registerSW({
@@ -216,18 +207,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     const online = () =>
-      void syncBirthdays()
-        .then((result) => {
-          if (result.failed)
-            setNotice(
-              `Bangumi 生日获取失败：${result.errors.join("；")}，可在设置中重试。`,
-            );
-        })
-        .catch((e) =>
-          setNotice(
-            `生日获取失败：${e instanceof Error ? e.message : "请在设置中重试"}`,
-          ),
-        );
+      void quietNetwork(() => syncBirthdays()).catch(() => {});
     window.addEventListener("online", online);
     return () => window.removeEventListener("online", online);
   }, []);

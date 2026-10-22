@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   UserPlus,
+  X,
 } from "lucide-react";
 import {
   searchBangumi,
@@ -97,6 +98,44 @@ const sameCharacter = (a: BangumiCharacter, b: BangumiCharacter) =>
   a.id === b.id && a.provider === b.provider;
 
 /** 在线搜索角色：点击结果后，资料预览（头像、生日、Tag）直接展开在该结果里。 */
+/** 搜索结果底部的小提示：用一组对照例子说明怎样搜得到。 */
+const searchHints = {
+  bangumi: {
+    text: "找不到？试试搜全名或日文，例如：",
+    examples: [
+      { q: "小春", ok: false },
+      { q: "下江小春", ok: true },
+      { q: "コハル", ok: true },
+    ],
+  },
+  anilist: {
+    text: "找不到？AniList 只认英文全名，例如：",
+    examples: [
+      { q: "小春", ok: false },
+      { q: "Koharu Shimoe", ok: true },
+      { q: "Koharu", ok: true },
+    ],
+  },
+} as const;
+function SearchHint({ provider }: { provider: "bangumi" | "anilist" }) {
+  const hint = searchHints[provider];
+  return (
+    <p className="search-hint">
+      {hint.text}
+      {hint.examples.map((e) => (
+        <span
+          key={e.q}
+          className={`hint-chip${e.ok ? " ok" : " bad"}`}
+          aria-label={`${e.q}：${e.ok ? "能搜到" : "常常搜不到"}`}
+        >
+          {e.q}
+          {e.ok ? <Check size={12} /> : <X size={12} />}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 export function CharacterSearch({
   target,
   initialResults,
@@ -143,7 +182,8 @@ export function CharacterSearch({
     [tagValue, setTagValue] = useState<TagValue>({ tag: "", traits: "" }),
     [loading, setLoading] = useState(false),
     [saving, setSaving] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [searched, setSearched] = useState(false);
   useEffect(() => onProvider?.(provider), [provider, onProvider]);
   const existingTag = target !== "new" ? defaultTag(target) : "";
   const existingTraits = target !== "new" ? target.traits : "";
@@ -196,6 +236,7 @@ export function CharacterSearch({
       setError(e instanceof Error ? e.message : "搜索失败");
     } finally {
       setLoading(false);
+      setSearched(true);
     }
   };
   const searchedOnOpen = useRef(false);
@@ -377,22 +418,9 @@ export function CharacterSearch({
             )}
           </button>
         </div>
-        <p className="muted">
-          {target === "new"
-            ? "搜索并选择对应角色，点「确认关联」直接添加（头像、别名、作品、生日和 Tag 一并保存）；搜不到时可以手动添加。"
-            : "请选择对应角色，点「确认关联」直接保存头像、生日和 Tag。"}
-          已有手动生日和 Tag 不会被自动覆盖。
-        </p>
-        <p className="muted search-tip">
-          {provider === "anilist"
-            ? "搜索小贴士：AniList 只认英文（罗马字）全名，如 Roxy Migurdia；也可以粘贴 anilist.co/character/数字 的链接或 ID。从 Bangumi 切换过来会自动带上英文名；输入中文名时，会先靠 Bangumi 里的英文名或日文原名换成英文。重名多时，对照头像、作品和生日来选。"
-            : "搜索小贴士：Bangumi 用中文名或日文名最准，如 洛琪希；也可以粘贴 bgm.tv/character/数字 的链接或 ID。名字太常见时，对照列表里的头像和生日来选；搜不到可换日文名，或切到 AniList 用英文名搜。"}
-        </p>
         <ErrorText error={error} />
-        {!loading && !error && searchedOnOpen.current && !results.length && (
-          <p className="muted">
-            未找到对应角色，请换用日文／英文角色名或切换资料来源。
-          </p>
+        {!loading && !error && searched && !results.length && (
+          <p className="muted">没有找到对应角色。</p>
         )}
         {results.length > 0 && (
           <div className="bangumi-results">
@@ -543,6 +571,9 @@ export function CharacterSearch({
               );
             })}
           </div>
+        )}
+        {searched && !loading && (
+          <SearchHint provider={provider} />
         )}
       </div>
       <footer>

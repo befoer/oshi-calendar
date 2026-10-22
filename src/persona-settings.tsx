@@ -20,7 +20,7 @@ export function PersonaSettings({ notify }: { notify: (s: string) => void }) {
           aria-label="我的称呼"
           value={persona.name}
           onChange={(e) => setPersona({ ...persona, name: e.target.value })}
-          placeholder="例如：小夏"
+          placeholder="例如：主人"
         />
       </label>
       <label>

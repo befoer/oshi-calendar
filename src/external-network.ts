@@ -23,6 +23,19 @@ export function avatarFallbackURL(url: string) {
     return null;
   }
 }
+/**
+ * 后台自动补资料（启动、恢复联网、保存后）时网络出问题不弹窗打扰；
+ * 只有用户主动搜索、点重试时才提示。
+ */
+let quietDepth = 0;
+export async function quietNetwork<T>(task: () => Promise<T>): Promise<T> {
+  quietDepth++;
+  try {
+    return await task();
+  } finally {
+    quietDepth--;
+  }
+}
 export async function externalJSON(
   source: NetworkIssue["source"],
   url: string,
@@ -101,7 +114,7 @@ export async function externalJSON(
     throw error;
   } finally {
     clearTimeout(timer);
-    if (issue && !options.quiet && typeof window !== "undefined")
+    if (issue && !options.quiet && quietDepth === 0 && typeof window !== "undefined")
       window.dispatchEvent(
         new CustomEvent<NetworkIssue>("character-network-issue", {
           detail: issue,

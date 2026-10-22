@@ -1346,7 +1346,7 @@ test("模型列表获取失败保留已选模型，手动名称可供聊天选�
   await expect(page.getByLabel("聊天模型")).toHaveValue("manual-model");
 });
 
-test("网络失败弹窗提示VPN并可重试，AniList备用补齐匹配角色", async ({
+test("启动时不弹窗；搜索 Bangumi 连不上才提示 VPN，可重试，AniList备用补齐匹配角色", async ({
   page,
 }) => {
   await page.route("https://api.bgm.tv/**", (route) => route.abort());
@@ -1387,6 +1387,14 @@ test("网络失败弹窗提示VPN并可重试，AniList备用补齐匹配角色"
       : route.abort(),
   );
   await page.goto("/");
+  await page.waitForTimeout(1500);
+  await expect(
+    page.getByRole("dialog", { name: "角色资料网络连接失败" }),
+  ).toHaveCount(0);
+  await page.locator("nav").getByRole("button", { name: "角色库" }).click();
+  await page.getByRole("button", { name: "添加角色", exact: true }).click();
+  await page.getByPlaceholder("输入角色名、Bangumi ID 或链接").fill("碧翠丝");
+  await page.getByRole("button", { name: "搜索", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "角色资料网络连接失败" }),
   ).toContainText("VPN／代理");
@@ -1401,6 +1409,7 @@ test("网络失败弹窗提示VPN并可重试，AniList备用补齐匹配角色"
   await expect(
     page.getByRole("dialog", { name: "角色资料网络连接失败" }),
   ).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.locator("nav").getByRole("button", { name: "角色库" }).click();
   await expect(
     page
@@ -1519,13 +1528,13 @@ test("从 Bangumi 切换到 AniList：直接用已选角色的英文名搜索", 
   expect(searched).toContain("Test Character");
 });
 
-test("Bangumi 不可访问时仍有14位生日，日历显示生日事项", async ({ page }) => {
+test("Bangumi 不可访问时仍有14位生日，日历显示生日事项；启动时不弹网络提示", async ({ page }) => {
   await page.route("https://api.bgm.tv/**", (route) => route.abort());
   await page.goto("/");
+  await page.waitForTimeout(1500);
   await expect(
     page.getByRole("dialog", { name: "角色资料网络连接失败" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "稍后处理", exact: true }).click();
+  ).toHaveCount(0);
   await page.locator("nav").getByRole("button", { name: "角色库" }).click();
   await expect(
     page.locator(".cover-date").filter({ hasText: "生日待确认" }),
@@ -1544,14 +1553,13 @@ test("Bangumi 不可访问时仍有14位生日，日历显示生日事项", asyn
     "灰之魔女",
   ]);
   await page.reload();
-  await expect(
-    page.getByRole("dialog", { name: "角色资料网络连接失败" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "稍后处理", exact: true }).click();
   await page.locator("nav").getByRole("button", { name: "角色库" }).click();
   await expect(
     page.locator(".cover-date").filter({ hasText: "生日待确认" }),
   ).toHaveCount(3);
+  await expect(
+    page.getByRole("dialog", { name: "角色资料网络连接失败" }),
+  ).toHaveCount(0);
   await page
     .locator(".character-card")
     .filter({ hasText: "香风智乃" })

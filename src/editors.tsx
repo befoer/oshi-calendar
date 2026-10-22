@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { put } from "./store";
 import { syncBirthdays } from "./bangumi";
+import { quietNetwork } from "./external-network";
 import type { Character, CustomEvent, Data, Task } from "./domain";
 import {
   Avatar,
@@ -226,7 +227,7 @@ export function CharacterEditor({
           !record.avatarUrl) &&
         navigator.onLine
       )
-        void syncBirthdays(true).catch(() => {});
+        void quietNetwork(() => syncBirthdays(true)).catch(() => {});
       onSaved(record);
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");

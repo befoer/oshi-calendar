@@ -1327,3 +1327,27 @@
   color: var(--muted);
   font-size: 13px;
 }
+
+/* 添加角色：搜索结果底部的提示与对照例子 */
+.search-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.hint-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.hint-chip.ok svg { color: var(--c-done); }
+.hint-chip.bad svg { color: var(--c-danger); }
