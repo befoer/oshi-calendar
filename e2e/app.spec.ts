@@ -2006,7 +2006,8 @@ test("AI 工具调用保存，删除确认，操作可撤销", async ({ page }) 
   await expect(page.getByRole("status")).toContainText("已撤销");
 });
 
-test("助手一轮工具后：等待提示和回复在工具记录下面；模型没给总结时列出已保存的修改", async ({ page }) => {
+test("助手一轮工具后：等待提示和回复在工具记录下面；模型没给总结时列出已保存的修改；消息可复制", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   let round = 0;
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => (release = resolve));
@@ -2071,6 +2072,9 @@ test("助手一轮工具后：等待提示和回复在工具记录下面；模�
   // 结束后工具记录默认折叠，标题显示进度
   await expect(page.locator(".tool-activity")).not.toHaveAttribute("open", "");
   await expect(page.locator(".tool-activity summary")).toContainText("1 / 1 项完成");
+  await page.locator(".chat-message.user").last().hover();
+  await page.getByRole("button", { name: "复制我的消息" }).last().click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("新增 5 月 5 日测试节");
   await page.locator(".assistant-panel").screenshot({ path: "test-results/assistant-after-round.png" });
 });
 

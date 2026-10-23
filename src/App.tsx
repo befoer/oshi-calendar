@@ -5,6 +5,7 @@ import {
   Sparkles,
   Plus,
   Check,
+  Copy,
   Download,
   Upload,
   Trash2,
@@ -1873,10 +1874,29 @@ function AssistantPanel({
   const [toolsOpen, setToolsOpen] = useState(false);
   const lastUser = chats.map((c) => c.role).lastIndexOf("user");
   const runSplit = lastUser < 0 ? chats.length : lastUser + 1;
+  const [copiedChat, setCopiedChat] = useState("");
+  const copyChat = async (id: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedChat(id);
+      setTimeout(() => setCopiedChat((v) => (v === id ? "" : v)), 1500);
+    } catch {
+      /* 剪贴板不可用时仍可手动选中文字复制 */
+    }
+  };
   const renderChat = (c: (typeof chats)[number]) => (
     <div className={`chat-message ${c.role}`} key={c.id}>
       {c.role === "assistant" && <Sparkles size={16} />}
       <p>{c.content}</p>
+      <button
+        type="button"
+        className="chat-copy"
+        aria-label={c.role === "user" ? "复制我的消息" : "复制助手回复"}
+        title="复制"
+        onClick={() => void copyChat(c.id, c.content)}
+      >
+        {copiedChat === c.id ? <Check size={13} /> : <Copy size={13} />}
+      </button>
     </div>
   );
   const confirm = async () => {

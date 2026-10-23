@@ -564,6 +564,78 @@ describe("AI 操作约束", () => {
       ],
     });
   });
+  it("批量补全已有角色：没传 characterId 也补全同名角色而不另建；需确认的跳过并继续处理其余角色", async () => {
+    const roxy = { ...newCharacter("洛琪希"), id: "roxy" };
+    await db.characters.put(roxy);
+    let round = 0;
+    let secondRound: any[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        const u = String(url);
+        if (u.includes("api.bgm.tv")) {
+          if (u.endsWith("/subjects"))
+            return new Response(JSON.stringify([{ name_cn: "无职转生" }]));
+          const id = Number(u.split("/").at(-1));
+          return new Response(
+            JSON.stringify(
+              id === 46465
+                ? {
+                    id,
+                    name: "ロキシー",
+                    birth_mon: 3,
+                    birth_day: 3,
+                    infobox: [{ key: "简体中文名", value: "洛琪希" }],
+                  }
+                : {
+                    id,
+                    name: "冲突角色",
+                    birth_mon: 3,
+                    birth_day: 3,
+                    infobox: [{ key: "生日", value: "虚构历373年" }],
+                  },
+            ),
+          );
+        }
+        const body = JSON.parse(String((init as RequestInit).body));
+        round++;
+        if (round === 2) secondRound = body.messages.filter((m: any) => m.role === "tool");
+        const call = (id: string, bangumiId: number) => ({
+          id,
+          type: "function",
+          function: {
+            name: "propose_bangumi_import",
+            arguments: JSON.stringify({ bangumiId }),
+          },
+        });
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message:
+                  round === 1
+                    ? {
+                        role: "assistant",
+                        content: null,
+                        tool_calls: [call("a", 46465), call("b", 999)],
+                      }
+                    : { role: "assistant", content: "已补全洛琪希；冲突角色需要确认。" },
+              },
+            ],
+          }),
+        );
+      }),
+    );
+    const r = await runAssistant(config, [], new AbortController().signal, () => {});
+    expect(r.pending).toBeUndefined();
+    expect(r.text).toContain("冲突角色需要确认");
+    expect(await db.characters.count()).toBe(1);
+    expect((await db.characters.get("roxy"))?.bangumiId).toBe(46465);
+    expect(JSON.parse(secondRound[1].content)).toMatchObject({
+      needsConfirmation: true,
+      bangumiId: 999,
+    });
+  });
   it("Bangumi生日来源冲突暂停导入", async () => {
     let round = 0;
     vi.stubGlobal(

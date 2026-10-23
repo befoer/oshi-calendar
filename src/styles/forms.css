@@ -1434,3 +1434,38 @@
   font-weight: 600;
 }
 .tool-activity[open] > summary::after { content: "收起"; }
+
+/* 助手对话：文字可选中复制，悬停出现复制按钮 */
+.chat-message {
+  position: relative;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.chat-message.user ::selection {
+  background: rgba(255, 255, 255, 0.38);
+  color: inherit;
+}
+.chat-copy {
+  position: absolute;
+  bottom: -10px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.chat-message.user .chat-copy { left: -12px; }
+.chat-message.assistant .chat-copy { right: -12px; }
+.chat-message:hover .chat-copy,
+.chat-copy:focus-visible { opacity: 1; }
+.chat-copy:hover { color: var(--primary); }
+@media (hover: none) {
+  .chat-copy { opacity: 0.7; }
+}
