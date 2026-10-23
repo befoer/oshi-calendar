@@ -51,6 +51,7 @@
     },
     "files": [
       "electron-dist/**",
+      "electron/preload.cjs",
       "dist/**",
       "scripts/launcher.ico",
       "package.json",
@@ -80,5 +81,11 @@
       "artifactName": "推日-${version}-便携版.exe"
     },
     "artifactName": "推日-${version}-文件夹版.${ext}"
+  },
+  "description": "推日 · 角色创作日历",
+  "author": "烧猫定食",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/befoer/oshi-calendar.git"
   }
 }

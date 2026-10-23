@@ -34,6 +34,7 @@ import {
 import { authorBilibiliURL, authorName, projectRepoURL } from "./links";
 import { sendToAcgDna } from "./acg-dna";
 import { oldCachesCleared } from "./cache-cleanup";
+import { DesktopUpdate } from "./desktop-update";
 import { AcgImportDialog, useAcgDnaReceive } from "./acg-dna-receive";
 import { registerSW } from "virtual:pwa-register";
 import {
@@ -1586,6 +1587,7 @@ function SettingsView({
             <Info size={18} />
             关于
           </h2>
+          <DesktopUpdate />
           <div className="setting-row">
             <div>
               <strong>作者</strong>

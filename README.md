@@ -21,6 +21,15 @@ Windows 日常使用双击 `推日.exe` 或 `start.cmd`。它会检查依赖、�
 
 Electron 版在自带窗口里运行，本机资料服务在同一进程内启动，仍使用 http://127.0.0.1:4173 （次元属性联动依赖这个地址）。数据保存在 exe 旁边的 `推日数据` 文件夹，拷走整个文件夹即可带走；它和浏览器版的数据互不相通，可用「设置 → 数据与备份」导出 JSON 后导入迁移。主进程源码在 `electron/main.mjs`，打包时用 `scripts/bundle-electron.mjs` 把它和服务端依赖打成一个文件，所以包里不带 `node_modules`。开发调试用 `npm run electron:dev`（数据放在项目里的 `.electron-data`）。
 
+**发布新版与在线更新**：改好后把 `package.json` 的 `version` 调高（如 1.0.1），提交后打标签推送：
+
+```sh
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+GitHub Actions（`.github/workflows/release.yml`）会核对标签与版本号、跑单元测试、打包，并把文件夹版 zip 和便携版 exe 发布到 Releases。桌面版启动约 8 秒后在后台检查最新 Release，有新版弹窗提示（可「跳过这个版本」），也可在「设置 → 关于」手动检查。普通推送不会触发更新。更新只是下载新版程序，数据在 `推日数据` 文件夹，把它移到新版旁边即可。仓库公开后才能检查到更新。
+
 开发时使用：
 
 ```sh

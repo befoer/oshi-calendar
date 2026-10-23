@@ -1,0 +1,51 @@
+# 推送 v1.2.3 这样的版本标签时：检查版本号一致 → 测试 → 打包 Electron 版 → 发布到 GitHub Releases。
+# 桌面版启动时读取最新 Release 提示更新，所以只有发布版本才会推给用户，普通推送不会。
+name: Release desktop
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: 标签与 package.json 版本一致
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(node -p "require('./package.json').version")
+          if [ "$tag" != "$version" ]; then
+            echo "标签 v$tag 与 package.json 版本 $version 不一致，请先改 package.json 的 version"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: 单元测试
+        run: npm test
+
+      - name: 构建页面并打包桌面版
+        run: |
+          npm run build
+          node scripts/bundle-electron.mjs
+          npx electron-builder --win --publish never
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 推日 ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release/*.zip
+            release/*.exe

@@ -2,8 +2,10 @@
  * 推日 Electron 便携版：在本进程里启动本机资料服务（固定 127.0.0.1:4173），
  * 用自带窗口打开它。数据（IndexedDB 等）放在 exe 旁边的「推日数据」文件夹，拷走整个文件夹就能带走。
  */
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
+import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { checkForUpdate, RELEASES_PAGE } from "./updates.mjs";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -90,10 +92,59 @@ function createWindow() {
     backgroundColor: "#f6f5fb",
     autoHideMenuBar: true,
     show: false,
+    webPreferences: { preload: join(here, "..", "electron", "preload.cjs") },
   });
   main.once("ready-to-show", () => main?.show());
   main.on("closed", () => (main = null));
   void main.loadURL(`${origin}/`);
+}
+
+// ---------- 在线更新 ----------
+// 用 Electron 自己的网络（跟随系统代理）访问 GitHub
+const checkUpdate = () => checkForUpdate(app.getVersion(), (url, init) => net.fetch(url, init));
+const settingsFile = () => join(app.getPath("userData"), "desktop-settings.json");
+async function readSettings() {
+  try {
+    return JSON.parse(await readFile(settingsFile(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+const isDownloadURL = (url) =>
+  typeof url === "string" &&
+  (url.startsWith(RELEASES_PAGE) ||
+    url.startsWith("https://github.com/befoer/oshi-calendar/releases/"));
+
+ipcMain.handle("desktop:version", () => app.getVersion());
+ipcMain.handle("desktop:check-update", () => checkUpdate());
+ipcMain.handle("desktop:open-download", (_event, url) => {
+  if (isDownloadURL(url)) void shell.openExternal(url);
+});
+
+/** 启动后在后台检查一次；有新版弹窗提示，可选择跳过这个版本。 */
+async function remindUpdate() {
+  const result = await checkUpdate();
+  if (result.status !== "available" || !main) return;
+  const settings = await readSettings();
+  if (settings.skipVersion === result.latest) return;
+  const { response } = await dialog.showMessageBox(main, {
+    type: "info",
+    title: "推日有新版本",
+    message: `发现新版本 ${result.latest}（当前 ${result.current}）`,
+    detail:
+      (result.notes ? `${result.notes}\n\n` : "") +
+      "下载后解压，用新文件夹里的 推日.exe 打开即可；把旧版旁边的「推日数据」文件夹一起移过去就能保留数据。",
+    buttons: ["下载新版", "稍后", "跳过这个版本"],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (response === 0) void shell.openExternal(result.url || RELEASES_PAGE);
+  if (response === 2)
+    await writeFile(
+      settingsFile(),
+      JSON.stringify({ ...settings, skipVersion: result.latest }),
+    ).catch(() => {});
 }
 
 app.on("second-instance", () => {
@@ -114,6 +165,7 @@ app.whenReady().then(async () => {
     return;
   }
   createWindow();
+  setTimeout(() => void remindUpdate().catch(() => {}), 8000);
 });
 
 app.on("window-all-closed", () => app.quit());
