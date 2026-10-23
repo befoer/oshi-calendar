@@ -5,7 +5,10 @@ export function handleWebTools(
   res: ServerResponse,
 ): Promise<boolean>;
 export function publicAddress(address: string): boolean;
-export function publicURL(input: string): Promise<URL>;
+export function publicURL(
+  input: string,
+  network?: { mode: string },
+): Promise<URL>;
 export function extractPage(
   html: string,
   url: string,

@@ -226,3 +226,10 @@ it("AI 接口中转只接受同源 JSON、固定路径、公网地址，且不�
     await new Promise<void>((done) => server.close(() => done()));
   }
 });
+
+it("经代理时不看本机 DNS（fake-ip 解析到 198.18.x.x 也能读网页），但仍拒绝本机和内网地址", async () => {
+  const proxy = { mode: "system" };
+  await expect(publicURL("https://zh.moegirl.org.cn/普拉娜", proxy)).resolves.toBeInstanceOf(URL);
+  for (const url of ["http://localhost/a", "http://127.0.0.1/a", "http://192.168.1.2/a", "http://intranet/a"])
+    await expect(publicURL(url, proxy)).rejects.toThrow("不能访问本机、内网");
+});

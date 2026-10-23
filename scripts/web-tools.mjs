@@ -16,7 +16,10 @@ const environmentDispatcher = new EnvHttpProxyAgent({
         if (error) return callback(error);
         if (
           !addresses.length ||
-          addresses.some(({ address }) => !publicAddress(address))
+          addresses.some(
+            ({ address }) =>
+              !publicAddress(address) && !/^198\.1[89]\./.test(address),
+          )
         )
           return callback(new Error("网页工具不能连接内网地址"));
         if (options.all) callback(null, addresses);
@@ -71,7 +74,13 @@ export function publicAddress(address) {
   // Globally routable unicast only; IPv4-mapped and local IPv6 are excluded.
   return isIP(address) === 6 && /^[23][0-9a-f]{3}:/i.test(address);
 }
-export async function publicURL(input) {
+/** 198.18.0.0/15：Clash 等 fake-ip 模式的本机 DNS 返回段，代表「交给代理/TUN 解析」，不是内网。 */
+const fakeIP = (address) => /^198\.1[89]\./.test(address);
+/**
+ * 网页工具只访问公网地址。经代理时域名由代理解析，本机 DNS 结果没有参考价值，
+ * 只拒绝 localhost、单词主机名和内网 IP 字面量；直连时才在本机解析核对（放行 fake-ip 段）。
+ */
+export async function publicURL(input, network = { mode: "direct" }) {
   const url = new URL(input);
   if (
     !["http:", "https:"].includes(url.protocol) ||
@@ -81,22 +90,30 @@ export async function publicURL(input) {
   )
     throw new Error("只能读取无登录信息的公开 HTTP(S) 网页");
   const host = url.hostname.replace(/^\[|\]$/g, "");
-  const addresses = isIP(host)
-    ? [{ address: host }]
-    : await lookup(host, { all: true });
+  const literal = isIP(host) !== 0;
   if (
-    !addresses.length ||
-    addresses.some(({ address }) => !publicAddress(address))
+    literal
+      ? !publicAddress(host)
+      : host === "localhost" || host.endsWith(".localhost") || !host.includes(".")
   )
     throw new Error("网页工具不能访问本机、内网或非公开地址");
+  if (!literal && network.mode === "direct") {
+    const addresses = await lookup(host, { all: true });
+    if (
+      !addresses.length ||
+      addresses.some(({ address }) => !publicAddress(address) && !fakeIP(address))
+    )
+      throw new Error("网页工具不能访问本机、内网或非公开地址");
+  }
   url.hash = "";
   return url;
 }
 async function download(input, signal) {
-  let url = await publicURL(input);
+  let network = await resolveNetwork(new URL(input).protocol);
+  let url = await publicURL(input, network);
   for (let attempt = 0; attempt < 5; attempt++) {
     signal.throwIfAborted();
-    const network = await resolveNetwork(url.protocol);
+    network = await resolveNetwork(url.protocol);
     const response = await fetch(url, {
       dispatcher: dispatcherFor(network),
       signal,
@@ -110,6 +127,7 @@ async function download(input, signal) {
       await response.body?.cancel();
       url = await publicURL(
         new URL(response.headers.get("location") || "", url).href,
+        network,
       );
       continue;
     }

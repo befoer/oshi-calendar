@@ -38,8 +38,8 @@ export type Page =
   "home" | "calendar" | "characters" | "recommendations" | "tasks" | "settings";
 export const navigation = [
   { id: "home", label: "创作工作台", short: "工作台", icon: LayoutDashboard },
-  { id: "calendar", label: "日历", short: "日历", icon: CalendarDays },
   { id: "characters", label: "角色库", short: "角色库", icon: Users },
+  { id: "calendar", label: "日历", short: "日历", icon: CalendarDays },
   { id: "recommendations", label: "年度选题", short: "选题", icon: Lightbulb },
   { id: "tasks", label: "创作任务", short: "任务", icon: SquareKanban },
   { id: "settings", label: "设置", short: "设置", icon: SettingsIcon },
