@@ -1351,3 +1351,20 @@
 }
 .hint-chip.ok svg { color: var(--c-done); }
 .hint-chip.bad svg { color: var(--c-danger); }
+
+/* 设置「关于」里的外链按钮，外观与普通按钮一致 */
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.link-button:hover { background: var(--surface-3); }

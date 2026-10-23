@@ -14,7 +14,9 @@ import {
   UserPlus,
   Wand2,
   CornerDownLeft,
+  Github,
 } from "lucide-react";
+import { projectRepoURL } from "./links";
 import type { Character, Data } from "./domain";
 import { today, localDate } from "./calendar";
 import {
@@ -98,6 +100,16 @@ export function Rail({
           </button>
         ))}
       </nav>
+      <a
+        className="rail-link"
+        href={projectRepoURL}
+        target="_blank"
+        rel="noreferrer"
+        title="在 GitHub 查看推日"
+        aria-label="GitHub 仓库"
+      >
+        <Github size={17} />
+      </a>
     </aside>
   );
 }

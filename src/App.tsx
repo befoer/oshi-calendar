@@ -26,7 +26,11 @@ import {
   CalendarHeart,
   Database,
   History,
+  Github,
+  Info,
+  Tv,
 } from "lucide-react";
+import { authorBilibiliURL, authorName, projectRepoURL } from "./links";
 import { registerSW } from "virtual:pwa-register";
 import {
   db,
@@ -747,6 +751,7 @@ const settingsSections = [
   { id: "set-events", label: "自定义节日", icon: CalendarHeart },
   { id: "set-backup", label: "数据与备份", icon: Database },
   { id: "set-log", label: "操作记录", icon: History },
+  { id: "set-about", label: "关于", icon: Info },
 ] as const;
 
 function SettingsView({
@@ -1541,6 +1546,42 @@ function SettingsView({
             </div>
           ))}
           {!logs.length && <p className="muted">暂无修改记录</p>}
+        </section>
+        <section className="settings-section" id="set-about">
+          <h2>
+            <Info size={18} />
+            关于
+          </h2>
+          <div className="setting-row">
+            <div>
+              <strong>作者</strong>
+              <span>{authorName}</span>
+            </div>
+            <a
+              className="link-button"
+              href={authorBilibiliURL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Tv size={16} />
+              B 站主页
+            </a>
+          </div>
+          <div className="setting-row">
+            <div>
+              <strong>项目源码</strong>
+              <span>github.com/befoer/oshi-calendar</span>
+            </div>
+            <a
+              className="link-button"
+              href={projectRepoURL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Github size={16} />
+              GitHub
+            </a>
+          </div>
         </section>
         </div>
       </div>

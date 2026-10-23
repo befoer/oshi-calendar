@@ -741,3 +741,24 @@ kbd {
     min-width: 0;
   }
 }
+
+/* 侧栏最底部的 GitHub 入口：小而淡，不抢导航 */
+.rail-link {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  color: var(--muted);
+  opacity: 0.75;
+  transition: background 0.2s, color 0.2s, opacity 0.2s;
+}
+.rail-link:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+  opacity: 1;
+}
+@media (max-width: 900px) {
+  .rail-link { display: none; }
+}
