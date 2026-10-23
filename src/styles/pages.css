@@ -2522,3 +2522,28 @@
 .chat-line.user .chat-tools {
   order: -1;
 }
+
+/* 角色聊天：联网搜索时的等待提示和回复下方的来源 */
+.chat-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.chat-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.chat-sources a {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

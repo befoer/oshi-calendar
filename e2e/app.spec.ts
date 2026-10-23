@@ -2772,6 +2772,63 @@ test("聊天窗口：有头像和快捷输入；点生图只显示场景话；�
   await expect(dialog.locator(".chat-avatar .avatar").first()).toBeVisible();
 });
 
+test("角色聊天联网搜索：角色写搜索标记后应用替它搜索、阅读首条网页，再以角色口吻回答并附来源", async ({ page }) => {
+  const asks: any[] = [];
+  await page.route("https://ai.example.test/**", async (route) => {
+    const body = route.request().postDataJSON();
+    const system = String(body.messages[0].content);
+    if (!system.includes("和玩家轻松聊天"))
+      return route.fulfill({ json: { choices: [{ finish_reason: "stop", message: { content: '["留言一。"]' } }] } });
+    asks.push(body.messages);
+    const content =
+      asks.length === 1 ? "[[搜索: 光之美少女 最新剧场版]]" : "我查到啦，新剧场版明年上映哦！";
+    return route.fulfill({ json: { choices: [{ finish_reason: "stop", message: { content } }] } });
+  });
+  let searched = "";
+  await page.route("**/__huiqi_web/search", async (route) => {
+    searched = route.request().postDataJSON().query;
+    await route.fulfill({
+      json: {
+        success: true,
+        provider: "Bing",
+        query: searched,
+        results: [
+          { title: "剧场版官网", url: "https://example.com/movie", snippet: "2027 年上映" },
+          { title: "新闻", url: "https://example.com/news", snippet: "公布了海报" },
+        ],
+      },
+    });
+  });
+  await page.route("**/__huiqi_web/read", (route) =>
+    route.fulfill({
+      json: { success: true, url: "https://example.com/movie", title: "剧场版官网", text: "定档 2027 年春季。", truncated: false },
+    }),
+  );
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem("huiqi-birthday-note-auto", "off");
+    localStorage.setItem(
+      "huiqi-ai-config",
+      JSON.stringify({ endpoint: "https://ai.example.test/v1", model: "m", key: "k", remember: true, mode: "tools" }),
+    );
+  });
+  await page.reload();
+  await page.locator("nav").getByRole("button", { name: "角色库" }).click();
+  await page.locator(".character-card").filter({ hasText: "露露卡" }).getByRole("button", { name: "和 露露卡 聊天" }).click();
+  const dialog = page.getByRole("dialog", { name: /和 露露卡/ });
+  await dialog.getByLabel("发送给角色").fill("新剧场版什么时候上映？");
+  await dialog.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(dialog).toContainText("我查到啦，新剧场版明年上映哦！");
+  await expect(dialog).not.toContainText("[[搜索");
+  expect(searched).toBe("光之美少女 最新剧场版");
+  expect(String(asks[0][0].content)).toContain("[[搜索: 关键词]]");
+  const followUp = asks[1].at(-1);
+  expect(followUp.role).toBe("user");
+  expect(followUp.content).toContain("2027 年上映");
+  expect(followUp.content).toContain("定档 2027 年春季");
+  await expect(dialog.getByLabel("搜索来源")).toContainText("剧场版官网");
+});
+
 test("聊天增强：角色设定与用户称呼带给 AI；开场白；重新生成可切换版本；编辑、删除消息", async ({
   page,
 }) => {

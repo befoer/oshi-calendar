@@ -8,6 +8,7 @@ import {
   Palette,
   Pencil,
   RefreshCw,
+  Search,
   Send,
   Square,
   Trash2,
@@ -24,6 +25,8 @@ import {
   pickChatQuick,
   pickImagePrompt,
   pickPromptAsk,
+  parseSearchMarker,
+  searchBrief,
   visibleText,
 } from "./chat-prompts";
 import { savedReplies } from "./birthday-note";
@@ -31,6 +34,8 @@ import type { Character } from "./domain";
 import { defaultTag } from "./editors";
 import { generateImage, imageConfigured, loadImageConfig } from "./image-gen";
 import { Avatar, ErrorText, Modal } from "./ui";
+import { localCharacterService } from "./external-network";
+import { webRequest } from "./web";
 
 type Message = {
   role: "user" | "assistant";
@@ -42,6 +47,10 @@ type Message = {
   image?: string;
   /** 生图用的提示词，不显示在聊天里，只在图片下提供「复制提示词」 */
   imagePrompt?: string;
+  /** 角色联网搜索后回答时引用的网页 */
+  sources?: { title: string; url: string }[];
+  /** 正在进行的步骤（如「正在搜索…」），只在等待时显示，不保存 */
+  status?: string;
 };
 const historyKey = (id: string) => `huiqi-chat-${id}`;
 const MAX_SAVED = 60;
@@ -142,42 +151,84 @@ export function CharacterChat({
   /** 请求一条回复。swipe 为真时，结果作为最后一条回复的新版本；否则追加成新消息。 */
   const reply = async (history: Message[], swipe?: Message) => {
     const abort = begin();
-    const showing = (text: string): Message[] => [
+    const showing = (text: string, status?: string): Message[] => [
       ...history,
       swipe
-        ? { ...swipe, content: text, image: undefined }
-        : { role: "assistant", content: text },
+        ? { ...swipe, content: text, image: undefined, sources: undefined, status }
+        : { role: "assistant", content: text, status },
     ];
+    // 联网搜索需要本机服务（推日.exe 启动的 127.0.0.1）；纯静态网页没有
+    const searchReady = localCharacterService();
     setMessages(showing(""));
     const persona = loadPersona();
     try {
-      const out = await completion(
-        loadConfig(),
-        [
-          {
-            role: "system",
-            content: chatSystemPrompt(
-              {
-                ...info,
-                traits: character.traits ?? "",
-                personality: character.chatPersonality,
-                examples: character.chatExamples,
-                player: persona,
-              },
-              { photo: imageReady, syntax: imageConfig.syntax },
-            ),
-          },
-          // 发过照片的消息没有文字，告诉模型「已经发过照片」
-          ...history.map(({ role, content, image }) => ({
-            role,
-            content: image ? content || "（发送了一张照片）" : content,
-          })),
-        ],
-        undefined,
-        abort.signal,
-        (partial) => setMessages(showing(visibleText(partial))),
-      );
-      const raw = String(out.content ?? "");
+      const base = [
+        {
+          role: "system",
+          content: chatSystemPrompt(
+            {
+              ...info,
+              traits: character.traits ?? "",
+              personality: character.chatPersonality,
+              examples: character.chatExamples,
+              player: persona,
+            },
+            { photo: imageReady, syntax: imageConfig.syntax, search: searchReady },
+          ),
+        },
+        // 发过照片的消息没有文字，告诉模型「已经发过照片」
+        ...history.map(({ role, content, image }) => ({
+          role,
+          content: image ? content || "（发送了一张照片）" : content,
+        })),
+      ];
+      const ask = (extra: { role: string; content: string }[] = []) =>
+        completion(
+          loadConfig(),
+          [...base, ...extra],
+          undefined,
+          abort.signal,
+          (partial) => setMessages(showing(visibleText(partial))),
+        );
+      let raw = String((await ask()).content ?? "");
+      // 角色想查资料时只回一行 [[搜索: 关键词]]：应用替它搜索，把结果作为资料再问一次（每条回复最多一次）
+      const query = searchReady ? parseSearchMarker(raw) : null;
+      let sources: Message["sources"];
+      if (query) {
+        setMessages(showing("", `正在搜索「${query}」…`));
+        let brief: string;
+        try {
+          const found = (await webRequest("search", { query }, abort.signal)) as {
+            results: { title: string; url: string; snippet: string }[];
+          };
+          let page: { title: string; url: string; text: string } | undefined;
+          if (found.results[0]) {
+            setMessages(showing("", `正在阅读「${found.results[0].title}」…`));
+            try {
+              page = (await webRequest(
+                "read",
+                { url: found.results[0].url },
+                abort.signal,
+              )) as typeof page;
+            } catch {
+              if (abort.signal.aborted) throw new Error("已取消");
+            }
+          }
+          brief = searchBrief(query, found.results, page);
+          sources = found.results.slice(0, 3).map(({ title, url }) => ({ title, url }));
+        } catch (e) {
+          if (abort.signal.aborted) throw e;
+          brief = `【应用提示，不是玩家说的话】网页搜索失败：${e instanceof Error ? e.message : "未知原因"}。请用角色口吻告诉玩家暂时查不到，不要编造，也不要再写搜索标记。`;
+        }
+        raw = String(
+          (
+            await ask([
+              { role: "assistant", content: `[[搜索: ${query}]]` },
+              { role: "user", content: brief },
+            ])
+          ).content ?? "",
+        );
+      }
       const scene = imageReady ? parsePhoto(raw) : null;
       const text = visibleText(raw) || (scene ? "" : "（没有收到回复）");
       const versions = swipe
@@ -187,6 +238,7 @@ export function CharacterChat({
         role: "assistant",
         content: text,
         ...(versions ? { variants: versions, v: versions.length - 1 } : {}),
+        ...(sources?.length ? { sources } : {}),
       };
       setMessages([
         ...history,
@@ -386,8 +438,27 @@ export function CharacterChat({
                         )}
                         {m.content ||
                           (busy && i === last && !m.image ? (
-                            <Loader2 className="spin" size={14} />
+                            <span className="chat-status">
+                              <Loader2 className="spin" size={14} />
+                              {m.status}
+                            </span>
                           ) : null)}
+                      </div>
+                    )}
+                    {!!m.sources?.length && editing?.index !== i && (
+                      <div className="chat-sources" aria-label="搜索来源">
+                        <Search size={12} />
+                        {m.sources.map((source) => (
+                          <a
+                            key={source.url}
+                            href={source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={source.url}
+                          >
+                            {source.title}
+                          </a>
+                        ))}
                       </div>
                     )}
                     {m.image && m.imagePrompt && (
