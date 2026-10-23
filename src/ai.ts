@@ -549,21 +549,41 @@ export async function completion(
   if (onText && typeof message.content === "string") onText(message.content);
   return message;
 }
+/**
+ * 有的模型会把对象或数组参数再包一层 JSON 字符串（如 `"data": "{\"defaultReminderDays\":7}"`），
+ * 直接校验会报「Expected object, received string」而不保存。只在期望对象／数组的位置还原，
+ * 普通文本字段（如带 `{}` 的 Tag）不受影响。
+ */
+export function decodeJSONString(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const text = value.trim();
+  if (!/^[[{]/.test(text)) return value;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : value;
+  } catch {
+    return value;
+  }
+}
+const jsonish = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(decodeJSONString, schema);
 const changesSchema = z
   .object({
-    changes: z
-      .array(
-        z
-          .object({
-            collection: z.enum(["characters", "events", "tasks", "settings"]),
-            action: z.enum(["put", "delete"]),
-            id: z.string().optional(),
-            data: z.record(z.unknown()).optional(),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(50),
+    changes: jsonish(
+      z
+        .array(
+          z
+            .object({
+              collection: z.enum(["characters", "events", "tasks", "settings"]),
+              action: z.enum(["put", "delete"]),
+              id: z.string().optional(),
+              data: jsonish(z.record(z.unknown()).optional()),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(50),
+    ),
     summary: z.string().min(1),
   })
   .strict();
@@ -960,7 +980,9 @@ export function prepareCharacterTags(
       presetId: z.string().min(1).optional(),
       positive: z.string().optional(),
       negative: z.string().optional(),
-      moveAliasesToTags: z.array(z.string().min(1)).max(50).default([]),
+      moveAliasesToTags: jsonish(z.array(z.string().min(1)).max(50)).default(
+        [],
+      ),
       summary: z.string().min(1),
     })
     .strict()
@@ -1026,20 +1048,22 @@ export function prepareBirthdayFindings(
 ): Pending {
   const { findings } = z
     .object({
-      findings: z
-        .array(
-          z
-            .object({
-              characterId: z.string().min(1),
-              status: z.enum(["unpublished", "not_found", "conflicting"]),
-              sourceUrl: z.string().url(),
-              quote: z.string().trim().min(8).max(1800),
-              summary: z.string().trim().min(1).max(600),
-            })
-            .strict(),
-        )
-        .min(1)
-        .max(50),
+      findings: jsonish(
+        z
+          .array(
+            z
+              .object({
+                characterId: z.string().min(1),
+                status: z.enum(["unpublished", "not_found", "conflicting"]),
+                sourceUrl: z.string().url(),
+                quote: z.string().trim().min(8).max(1800),
+                summary: z.string().trim().min(1).max(600),
+              })
+              .strict(),
+          )
+          .min(1)
+          .max(50),
+      ),
     })
     .strict()
     .parse(input);
@@ -1100,20 +1124,22 @@ export function prepareWebBirthdays(
 ): Pending {
   const args = z
     .object({
-      birthdays: z
-        .array(
-          z
-            .object({
-              characterId: z.string().min(1),
-              month: z.number().int().min(1).max(12),
-              day: z.number().int().min(1).max(31),
-              sourceUrl: z.string().url(),
-              quote: z.string().trim().min(8).max(1800),
-            })
-            .strict(),
-        )
-        .min(1)
-        .max(50),
+      birthdays: jsonish(
+        z
+          .array(
+            z
+              .object({
+                characterId: z.string().min(1),
+                month: z.number().int().min(1).max(12),
+                day: z.number().int().min(1).max(31),
+                sourceUrl: z.string().url(),
+                quote: z.string().trim().min(8).max(1800),
+              })
+              .strict(),
+          )
+          .min(1)
+          .max(50),
+      ),
     })
     .strict()
     .parse(input);
@@ -1459,7 +1485,8 @@ export async function runAssistant(
         });
         await checkpoint();
         try {
-          const args = parseJSON(call.function.arguments);
+          // 整串参数被再编码一次时（解析出来还是字符串）再解一层
+          const args = decodeJSONString(parseJSON(call.function.arguments));
           if (call.function.name === "query_data") {
             z.object({}).strict().parse(args);
             const state = await repository.snapshot();

@@ -604,6 +604,97 @@ describe("AI 操作约束", () => {
     expect(await db.characters.count()).toBe(1);
     expect(await db.logs.count()).toBe(1);
   });
+  it("工具参数里的对象被写成JSON字符串时仍能保存", async () => {
+    let round = 0;
+    const settingsCall = (args: string) => ({
+      id: "call-" + round,
+      type: "function",
+      function: { name: "apply_changes", arguments: args },
+    });
+    const calls = [
+      // data 是 JSON 字符串（实际遇到的写法）
+      JSON.stringify({
+        summary: "默认提醒",
+        changes: [
+          {
+            collection: "settings",
+            action: "put",
+            data: JSON.stringify({ reminderDays: 7 }),
+          },
+        ],
+      }),
+      // 整个参数再被编码一次
+      JSON.stringify(
+        JSON.stringify({
+          summary: "默认提醒",
+          changes: JSON.stringify([
+            { collection: "settings", action: "put", data: { reminderDays: 5 } },
+          ]),
+        }),
+      ),
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        round++;
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message:
+                  round <= calls.length
+                    ? {
+                        role: "assistant",
+                        content: null,
+                        tool_calls: [settingsCall(calls[round - 1])],
+                      }
+                    : { role: "assistant", content: "完成" },
+              },
+            ],
+          }),
+        );
+      }),
+    );
+    const r = await runAssistant(
+      config,
+      [],
+      new AbortController().signal,
+      () => {},
+    );
+    expect(r.pending).toBeUndefined();
+    // 两次调用都保存成功：先改成 7，再改成 5
+    expect(await db.logs.count()).toBe(2);
+    expect((await db.settings.get("main"))?.reminderDays).toBe(5);
+  });
+  it("只在期望对象的位置还原JSON字符串，文本字段原样保留", () => {
+    const tag = '{"masterpiece"}';
+    const pending = prepareChanges(
+      {
+        summary: "新增",
+        changes: JSON.stringify([
+          {
+            collection: "characters",
+            action: "put",
+            data: JSON.stringify({ name: "测试角色", aliases: ["[别名]"] }),
+          },
+        ]),
+      },
+      empty(),
+      "r",
+    );
+    expect((pending.operations[0].record as any).name).toBe("测试角色");
+    expect((pending.operations[0].record as any).aliases).toEqual(["[别名]"]);
+    expect(() =>
+      prepareChanges(
+        {
+          summary: "坏数据",
+          changes: [{ collection: "settings", action: "put", data: tag }],
+        },
+        empty(),
+        "r",
+      ),
+    ).toThrow();
+  });
   it("拒绝工具的服务自动回退JSON并保存", async () => {
     vi.stubGlobal(
       "fetch",
