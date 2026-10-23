@@ -2,16 +2,22 @@ import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
 import { createHash } from "node:crypto";
-const serverVersion = createHash("sha256")
-  .update(await readFile(new URL("./serve.mjs", import.meta.url)))
-  .update(await readFile(new URL("./web-tools.mjs", import.meta.url)))
-  .update(await readFile(new URL("./network.mjs", import.meta.url)))
-  .digest("hex");
+// Electron 版把服务端打包成一个文件，读不到源文件时用固定版本号（启动器只在源码版里比较它）
+let serverVersion = "bundled";
+try {
+  serverVersion = createHash("sha256")
+    .update(await readFile(new URL("./serve.mjs", import.meta.url)))
+    .update(await readFile(new URL("./web-tools.mjs", import.meta.url)))
+    .update(await readFile(new URL("./network.mjs", import.meta.url)))
+    .digest("hex");
+} catch {
+  /* bundled */
+}
 // cheerio / undici 加载要大半秒：先把端口监听起来，网页工具在后台加载，用到时再等
 const webTools = import("./web-tools.mjs");
 let webVersion = null;
 webTools.then((m) => (webVersion = m.webVersion)).catch(() => {});
-const root = resolve("dist");
+const root = resolve(process.env.HUIQI_ROOT || "dist");
 const port = Number(process.env.HUIQI_PORT || 4173);
 const mime = {
   ".html": "text/html; charset=utf-8",
@@ -24,7 +30,7 @@ const mime = {
   ".jpg": "image/jpeg",
   ".woff2": "font/woff2",
 };
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   res.setHeader("X-Huiqi-App", "creation-calendar");
   try {
     const path = decodeURIComponent(
@@ -71,6 +77,17 @@ createServer(async (req, res) => {
     res.writeHead(500);
     res.end("Unable to serve application");
   }
-}).listen(port, "127.0.0.1", () =>
-  console.log(`Huiqi running at http://127.0.0.1:${port}`),
+});
+/** Electron 版等它：端口监听成功时 resolve，端口被占用等错误时 reject。 */
+export const listening = new Promise((resolve, reject) => {
+  server.once("listening", resolve);
+  server.once("error", reject);
+});
+listening.then(
+  () => console.log(`Huiqi running at http://127.0.0.1:${port}`),
+  (error) => {
+    console.error(`Huiqi server error: ${error.code || error.message}`);
+    process.exitCode = 1;
+  },
 );
+server.listen(port, "127.0.0.1");

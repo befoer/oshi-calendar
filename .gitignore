@@ -10,3 +10,8 @@ huiqi-launcher.log
 # 本机工具配置与构建产物
 .claude/
 *.exe
+
+# Electron 便携版
+electron-dist/
+release/
+.electron-data/

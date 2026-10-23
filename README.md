@@ -12,6 +12,15 @@ Windows 日常使用双击 `推日.exe` 或 `start.cmd`。它会检查依赖、�
 
 `推日.exe` 是 Windows 启动器，仍需安装 Node.js，并与项目文件放在一起；可创建桌面快捷方式。它复用相同启动脚本与端口，保留原有工作空间数据，不是单文件独立应用。启动器源码位于 `scripts/windows-launcher.cs`，在 Windows 中用 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-launcher.ps1` 重新编译（使用系统 .NET Framework 4.x）。`推日.exe --check` 可静默验证启动流程并返回退出码，不打开浏览器。
 
+### Electron 版（不用装 Node.js）
+
+`npm run electron:build` 在 `release/` 生成两种包：
+
+- `推日-版本-文件夹版.zip`：解压后双击文件夹里的 `推日.exe`，约 1 秒启动（推荐）。
+- `推日-版本-便携版.exe`：单个文件，但每次启动要先解压自身，约 15 秒。
+
+Electron 版在自带窗口里运行，本机资料服务在同一进程内启动，仍使用 http://127.0.0.1:4173 （次元属性联动依赖这个地址）。数据保存在 exe 旁边的 `推日数据` 文件夹，拷走整个文件夹即可带走；它和浏览器版的数据互不相通，可用「设置 → 数据与备份」导出 JSON 后导入迁移。主进程源码在 `electron/main.mjs`，打包时用 `scripts/bundle-electron.mjs` 把它和服务端依赖打成一个文件，所以包里不带 `node_modules`。开发调试用 `npm run electron:dev`（数据放在项目里的 `.electron-data`）。
+
 开发时使用：
 
 ```sh
