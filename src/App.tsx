@@ -31,6 +31,7 @@ import {
   Tv,
 } from "lucide-react";
 import { authorBilibiliURL, authorName, projectRepoURL } from "./links";
+import { sendToAcgDna } from "./acg-dna";
 import { registerSW } from "virtual:pwa-register";
 import {
   db,
@@ -141,6 +142,7 @@ export default function App() {
       title: string;
     } | null>(null);
   const [chatWith, setChatWith] = useState<Character | null>(null);
+  const [exportingAcg, setExportingAcg] = useState(false);
   const [swUpdate, setSwUpdate] = useState<
     ((reload?: boolean) => Promise<void>) | null
   >(null);
@@ -464,6 +466,17 @@ export default function App() {
               onCopyTag={copyTag}
               onStar={toggleStar}
               onChat={setChatWith}
+              exportingAcg={exportingAcg}
+              onExportAcg={(list) => {
+                setExportingAcg(true);
+                notify(`正在打开次元属性，准备发送 ${list.length} 个角色…`);
+                sendToAcgDna(list)
+                  .then((count) => notify(`次元属性已导入 ${count} 个角色`))
+                  .catch((e) =>
+                    notify(e instanceof Error ? e.message : "导入次元属性失败"),
+                  )
+                  .finally(() => setExportingAcg(false));
+              }}
             />
           )}
           {page === "recommendations" && (

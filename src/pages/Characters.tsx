@@ -3,7 +3,9 @@ import {
   Check,
   Copy,
   CalendarDays,
+  Loader2,
   Plus,
+  Share2,
   Search,
   SlidersHorizontal,
   Star,
@@ -27,6 +29,8 @@ export function Characters({
   onCopyTag,
   onStar,
   onChat,
+  onExportAcg,
+  exportingAcg,
 }: {
   data: Data;
   onEdit: (c: Character) => void;
@@ -34,6 +38,8 @@ export function Characters({
   onCopyTag: (characterId?: string) => Promise<boolean>;
   onStar: (c: Character) => void;
   onChat: (c: Character) => void;
+  onExportAcg: (characters: Character[]) => void;
+  exportingAcg: boolean;
 }) {
   const [copied, setCopied] = useState("");
   const copyTag = async (c: Character) => {
@@ -72,10 +78,24 @@ export function Characters({
         eyebrow="CHARACTER LIBRARY"
         title="角色库"
         actions={
-          <button className="primary" onClick={onAdd}>
-            <Plus size={17} />
-            添加角色
-          </button>
+          <>
+            <button
+              onClick={() => onExportAcg(filtered)}
+              disabled={!filtered.length || exportingAcg}
+              title="把当前列表里的角色（名字、作品、头像）导入到次元属性"
+            >
+              {exportingAcg ? (
+                <Loader2 className="spin" size={17} />
+              ) : (
+                <Share2 size={17} />
+              )}
+              导入次元属性
+            </button>
+            <button className="primary" onClick={onAdd}>
+              <Plus size={17} />
+              添加角色
+            </button>
+          </>
         }
       >
         {data.characters.length} 位角色 · {starred} 位标星 · {pending}{" "}
