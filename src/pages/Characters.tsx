@@ -87,7 +87,7 @@ export function Characters({
               {exportingAcg ? (
                 <Loader2 className="spin" size={17} />
               ) : (
-                <AcgDnaMark size={13} />
+                <AcgDnaMark size={16} />
               )}
               导入次元属性
             </button>
