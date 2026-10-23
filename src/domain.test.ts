@@ -503,6 +503,66 @@ describe("AI 操作约束", () => {
       ),
     ).toThrow();
   });
+  it("添加角色：系统提示要求先查 Bangumi 和 Danbooru；lookup_character_tags 返回生图写法的候选", async () => {
+    let round = 0;
+    let systemPrompt = "";
+    let toolResult = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        if (String(url).includes("danbooru.donmai.us/tags.json"))
+          return new Response(
+            JSON.stringify([{ name: "roxy_migurdia", post_count: 2400 }]),
+          );
+        if (String(url).includes("related_tag"))
+          return new Response(
+            JSON.stringify({
+              related_tags: [
+                { tag: { name: "blue_hair", category: 0 }, frequency: 0.8 },
+              ],
+            }),
+          );
+        const body = JSON.parse(String((init as RequestInit).body));
+        round++;
+        if (round === 1) systemPrompt = body.messages[0].content;
+        if (round === 2) toolResult = body.messages.at(-1).content;
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message:
+                  round === 1
+                    ? {
+                        role: "assistant",
+                        content: null,
+                        tool_calls: [
+                          {
+                            id: "tags",
+                            type: "function",
+                            function: {
+                              name: "lookup_character_tags",
+                              arguments: '{"names":["Roxy Migurdia"]}',
+                            },
+                          },
+                        ],
+                      }
+                    : { role: "assistant", content: "完成" },
+              },
+            ],
+          }),
+        );
+      }),
+    );
+    await runAssistant(config, [], new AbortController().signal, () => {});
+    expect(systemPrompt).toContain("添加角色（含批量）必须先查资料");
+    expect(systemPrompt).toContain("lookup_character_tags");
+    expect(JSON.parse(toolResult)).toMatchObject({
+      source: "Danbooru",
+      candidates: [
+        { tag: "roxy migurdia", traits: "blue hair", posts: 2400 },
+      ],
+    });
+  });
   it("Bangumi生日来源冲突暂停导入", async () => {
     let round = 0;
     vi.stubGlobal(
