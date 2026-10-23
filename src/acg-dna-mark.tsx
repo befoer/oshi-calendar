@@ -2,7 +2,7 @@
 export function AcgDnaMark({ size = 17 }: { size?: number }) {
   return (
     <svg
-      width={Math.round(size * 1.3)}
+      width={Math.round((size * 204.14) / 104.44)}
       height={size}
       viewBox="0 0 204.14 104.44"
       fill="currentColor"
