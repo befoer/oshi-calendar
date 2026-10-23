@@ -554,7 +554,8 @@ describe("AI 操作约束", () => {
       }),
     );
     await runAssistant(config, [], new AbortController().signal, () => {});
-    expect(systemPrompt).toContain("添加角色（含批量）必须先查资料");
+    expect(systemPrompt).toContain("添加角色（含批量）默认先查资料再新建");
+    expect(systemPrompt).toContain("用户明确要求直接创建");
     expect(systemPrompt).toContain("lookup_character_tags");
     expect(JSON.parse(toolResult)).toMatchObject({
       source: "Danbooru",

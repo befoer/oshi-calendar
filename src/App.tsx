@@ -1870,6 +1870,15 @@ function AssistantPanel({
       setBusy(false);
     }
   };
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const lastUser = chats.map((c) => c.role).lastIndexOf("user");
+  const runSplit = lastUser < 0 ? chats.length : lastUser + 1;
+  const renderChat = (c: (typeof chats)[number]) => (
+    <div className={`chat-message ${c.role}`} key={c.id}>
+      {c.role === "assistant" && <Sparkles size={16} />}
+      <p>{c.content}</p>
+    </div>
+  );
   const confirm = async () => {
     if (!pending || busy) return;
     setBusy(true);
@@ -2006,30 +2015,22 @@ function AssistantPanel({
               ))}
             </div>
           )}
-          {chats.map((c) => (
-            <div className={`chat-message ${c.role}`} key={c.id}>
-              {c.role === "assistant" && <Sparkles size={16} />}
-              <p>{c.content}</p>
-            </div>
-          ))}
-          {busy && (
-            <div className="chat-thinking">
-              <Loader2 className="spin" size={16} />
-              {streamText ? "正在接收回复…" : phase}
-            </div>
-          )}
-          {busy && streamText && (
-            <div
-              className="chat-message assistant streaming"
-              aria-label="流式回复"
-            >
-              <Sparkles size={16} />
-              <p>{streamText}</p>
-            </div>
-          )}
+          {/* 本次的工具记录和保存结果放在「我的提问」和「助手回复」之间，回复始终在最下面 */}
+          {chats.slice(0, runSplit).map(renderChat)}
           {toolActivity.length > 0 && (
-            <div className="tool-activity" aria-label="实际工具执行记录">
-              <strong>本次工具执行</strong>
+            <details
+              className="tool-activity"
+              aria-label="实际工具执行记录"
+              open={busy || toolsOpen}
+              onToggle={(e) => !busy && setToolsOpen(e.currentTarget.open)}
+            >
+              <summary>
+                <strong>本次工具执行</strong>
+                <span>
+                  {toolActivity.filter((a) => a.status !== "running").length} /{" "}
+                  {toolActivity.length} 项完成
+                </span>
+              </summary>
               {toolActivity.map((activity) => (
                 <div
                   key={activity.id}
@@ -2054,6 +2055,7 @@ function AssistantPanel({
                       propose_bangumi_import: "关联提案",
                       apply_changes: "修改资料",
                       update_character_tags: "修改角色 Tag",
+                      lookup_character_tags: "查询 Tag",
                     }[activity.name] || activity.name}
                   </span>
                   <p>{activity.detail}</p>
@@ -2074,7 +2076,7 @@ function AssistantPanel({
                   )}
                 </div>
               ))}
-            </div>
+            </details>
           )}
           {logs.map((log) => (
             <div className="operation-result" key={log.id}>
@@ -2180,6 +2182,22 @@ function AssistantPanel({
                 </button>
               </div>
             </>
+          )}
+          {chats.slice(runSplit).map(renderChat)}
+          {busy && (
+            <div className="chat-thinking">
+              <Loader2 className="spin" size={16} />
+              {streamText ? "正在接收回复…" : phase}
+            </div>
+          )}
+          {busy && streamText && (
+            <div
+              className="chat-message assistant streaming"
+              aria-label="流式回复"
+            >
+              <Sparkles size={16} />
+              <p>{streamText}</p>
+            </div>
           )}
           <ErrorText error={error} />
           {!busy && recoverable && !pending && (

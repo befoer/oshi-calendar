@@ -2006,6 +2006,74 @@ test("AI 工具调用保存，删除确认，操作可撤销", async ({ page }) 
   await expect(page.getByRole("status")).toContainText("已撤销");
 });
 
+test("助手一轮工具后：等待提示和回复在工具记录下面；模型没给总结时列出已保存的修改", async ({ page }) => {
+  let round = 0;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route("https://ai.example.test/**", async (route) => {
+    round++;
+    if (round === 2) await gate;
+    const message =
+      round === 1
+        ? {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "add",
+                type: "function",
+                function: {
+                  name: "apply_changes",
+                  arguments: JSON.stringify({
+                    summary: "新增节日",
+                    changes: [
+                      {
+                        collection: "events",
+                        action: "put",
+                        data: { title: "测试节", recurrence: "solar", month: 5, day: 5 },
+                      },
+                    ],
+                  }),
+                },
+              },
+            ],
+          }
+        : { role: "assistant", content: "   " };
+    await route.fulfill({ json: { choices: [{ message }] } });
+  });
+  await page.goto("/");
+  await page.locator("nav").getByRole("button", { name: "设置" }).click();
+  await page.getByLabel("接口地址", { exact: true }).fill("https://ai.example.test/v1");
+  await page.getByLabel("模型", { exact: true }).fill("test");
+  await page.getByLabel("API Key", { exact: true }).fill("test");
+  await page.getByRole("button", { name: "保存配置" }).click();
+  await page.getByRole("button", { name: "AI 助手", exact: true }).click();
+  await page.getByLabel("发送给 AI 助手").fill("新增 5 月 5 日测试节");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  // 第一轮工具完成、模型还在整理：等待提示排在工具记录之后，能看到
+  const thinking = page.locator(".chat-thinking");
+  await expect(thinking).toContainText("第 1 轮工具已完成");
+  const after = await page.evaluate(() => {
+    const tools = document.querySelector(".tool-activity")!;
+    const wait = document.querySelector(".chat-thinking")!;
+    return !!(tools.compareDocumentPosition(wait) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(after).toBe(true);
+  release();
+  const reply = page.locator(".chat-message.assistant").last();
+  await expect(reply).toContainText("模型没有返回总结。本次已保存 1 批修改");
+  const replyAfterTools = await page.evaluate(() => {
+    const tools = document.querySelector(".tool-activity")!;
+    const replies = document.querySelectorAll(".chat-message.assistant");
+    return !!(tools.compareDocumentPosition(replies[replies.length - 1]) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(replyAfterTools).toBe(true);
+  // 结束后工具记录默认折叠，标题显示进度
+  await expect(page.locator(".tool-activity")).not.toHaveAttribute("open", "");
+  await expect(page.locator(".tool-activity summary")).toContainText("1 / 1 项完成");
+  await page.locator(".assistant-panel").screenshot({ path: "test-results/assistant-after-round.png" });
+});
+
 test("标星可在首页、角色库筛选并刷新保留；添加窗口分节日与角色两页", async ({
   page,
   context,

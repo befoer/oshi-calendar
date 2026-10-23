@@ -1415,3 +1415,22 @@
   white-space: nowrap;
 }
 .acg-import-list small { color: var(--muted); font-size: 12px; }
+
+/* 工具执行记录：可折叠，标题行显示完成进度 */
+.tool-activity > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  list-style: none;
+}
+.tool-activity > summary::-webkit-details-marker { display: none; }
+.tool-activity > summary strong { color: var(--ink); font-size: 13.5px; }
+.tool-activity > summary span { color: var(--muted); font-weight: 500; font-size: 12.5px; }
+.tool-activity > summary::after {
+  content: "展开";
+  margin-left: auto;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.tool-activity[open] > summary::after { content: "收起"; }
