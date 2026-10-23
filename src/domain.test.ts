@@ -1,4 +1,5 @@
 import "fake-indexeddb/auto";
+import { clearAssistantCheckpoint } from "./assistant-state";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ICAL from "ical.js";
 import {
@@ -635,6 +636,66 @@ describe("AI 操作约束", () => {
       needsConfirmation: true,
       bangumiId: 999,
     });
+  });
+  it("名字写法、作品名对不上时先请用户确认；用户确认后带 userConfirmed 即可关联已有角色", async () => {
+    const patchouli = { ...newCharacter("帕秋莉"), id: "pc", works: ["东方Project"] };
+    await db.characters.put(patchouli);
+    const run = async (args: Record<string, unknown>) => {
+      let round = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url) => {
+          const u = String(url);
+          if (u.includes("api.bgm.tv"))
+            return new Response(
+              JSON.stringify(
+                u.endsWith("/subjects")
+                  ? [{ name_cn: "东方红魔乡" }]
+                  : {
+                      id: 488,
+                      name: "パチュリー・ノーレッジ",
+                      infobox: [{ key: "简体中文名", value: "帕秋莉·诺蕾姬" }],
+                    },
+              ),
+            );
+          round++;
+          return new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message:
+                    round === 1
+                      ? {
+                          role: "assistant",
+                          content: null,
+                          tool_calls: [
+                            {
+                              id: "link",
+                              type: "function",
+                              function: {
+                                name: "propose_bangumi_import",
+                                arguments: JSON.stringify(args),
+                              },
+                            },
+                          ],
+                        }
+                      : { role: "assistant", content: "完成" },
+                },
+              ],
+            }),
+          );
+        }),
+      );
+      return runAssistant(config, [], new AbortController().signal, () => {});
+    };
+    const asked = await run({ bangumiId: 488, characterId: "pc" });
+    expect(asked.pending?.reasons.join()).toContain("身份不明确");
+    expect((await db.characters.get("pc"))?.bangumiId).toBeNull();
+    await clearAssistantCheckpoint();
+    const done = await run({ bangumiId: 488, characterId: "pc", userConfirmed: true });
+    expect(done.pending).toBeUndefined();
+    expect((await db.characters.get("pc"))?.bangumiId).toBe(488);
+    expect(await db.characters.count()).toBe(1);
   });
   it("Bangumi生日来源冲突暂停导入", async () => {
     let round = 0;

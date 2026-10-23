@@ -86,13 +86,18 @@ export function matchCharacterCandidate(
     const aliases = candidate.infobox?.find(
       (field) => field.key === "别名",
     )?.value;
-    const externalNames = [
+    const fullNames = [
       candidate.name,
       bgmName(candidate),
       ...(typeof aliases === "string"
         ? [aliases]
         : (aliases?.map((alias) => alias.v) ?? [])),
-    ]
+    ];
+    // 「帕秋莉·诺蕾姬」也认「帕秋莉」：取间隔号前的名字（至少两个字）
+    const givenNames = fullNames
+      .map((name) => name.split(/[・·•‧･]/)[0]?.trim() ?? "")
+      .filter((name) => [...name].length >= 2);
+    const externalNames = [...fullNames, ...givenNames]
       .map(identityKey)
       .filter(Boolean);
     return (

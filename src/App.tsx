@@ -1783,13 +1783,20 @@ function AssistantPanel({
       setLogs(savedLogs.filter((log): log is Log => !!log));
     });
   }, []);
-  const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => {
     onBusyChange(busy);
   }, [busy, onBusyChange]);
+  // 只在停在底部附近时跟随新内容；用户往上翻看时不把他拉回底部（自己发消息时仍回到底部）
+  const scroller = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
+  const onChatScroll = () => {
+    const el = scroller.current;
+    if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
   useEffect(() => {
-    if (open)
-      bottom.current?.scrollIntoView({ behavior: busy ? "instant" : "smooth" });
+    // 直接跳到底部：平滑滚动途中的滚动事件会被误判成「用户往上翻」
+    const el = scroller.current;
+    if (open && following.current && el) el.scrollTop = el.scrollHeight;
   }, [open, chats.length, busy, pending, streamText, toolActivity]);
   useEffect(
     () => () => {
@@ -1801,6 +1808,7 @@ function AssistantPanel({
     if ((!resume && !text.trim()) || busy || pending) return;
     const prompt = text.trim();
     if (!resume) setText("");
+    following.current = true;
     setError("");
     if (!resume) setLogs([]);
     setStreamText("");
@@ -2016,7 +2024,7 @@ function AssistantPanel({
             <option value="high">高</option>
           </select>
         </div>
-        <div className="chat-scroll">
+        <div className="chat-scroll" ref={scroller} onScroll={onChatScroll}>
           {!chats.length && (
             <div className="assistant-welcome">
               <div className="assistant-glyph">
@@ -2240,7 +2248,7 @@ function AssistantPanel({
               </div>
             </div>
           )}
-          <div ref={bottom} />
+
         </div>
         <div className="assistant-input">
           <textarea

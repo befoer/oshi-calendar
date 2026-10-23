@@ -2078,6 +2078,51 @@ test("助手一轮工具后：等待提示和回复在工具记录下面；模�
   await page.locator(".assistant-panel").screenshot({ path: "test-results/assistant-after-round.png" });
 });
 
+test("助手：往上翻看历史时，新内容不会把窗口拉回底部；自己发消息时回到底部", async ({ page }) => {
+  let round = 0;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route("https://ai.example.test/**", async (route) => {
+    round++;
+    if (round === 2) await gate;
+    const content =
+      round === 1
+        ? Array.from({ length: 60 }, (_, i) => `第 ${i + 1} 行`).join(String.fromCharCode(10))
+        : "第二次回复";
+    await route.fulfill({ json: { choices: [{ message: { role: "assistant", content } }] } });
+  });
+  await page.goto("/");
+  await page.locator("nav").getByRole("button", { name: "设置" }).click();
+  await page.getByLabel("接口地址", { exact: true }).fill("https://ai.example.test/v1");
+  await page.getByLabel("模型", { exact: true }).fill("test");
+  await page.getByLabel("API Key", { exact: true }).fill("test");
+  await page.getByRole("button", { name: "保存配置" }).click();
+  await page.getByRole("button", { name: "AI 助手", exact: true }).click();
+  const box = page.getByLabel("发送给 AI 助手");
+  await box.fill("先来一段长回复");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(page.getByText("第 60 行", { exact: false })).toBeVisible();
+  const scroller = page.locator(".chat-scroll");
+  const atBottom = () =>
+    scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  expect(await atBottom()).toBe(true);
+  await box.fill("再来一次");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(page.locator(".chat-thinking")).toBeVisible();
+  await scroller.evaluate((el) => {
+    el.scrollTop = 0;
+    el.dispatchEvent(new Event("scroll"));
+  });
+  release();
+  await expect(page.getByText("第二次回复")).toBeAttached();
+  await page.waitForTimeout(300);
+  expect(await scroller.evaluate((el) => el.scrollTop)).toBeLessThan(40);
+  await box.fill("第三次");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(page.locator(".chat-message.user").last()).toContainText("第三次");
+  await expect.poll(atBottom).toBe(true);
+});
+
 test("标星可在首页、角色库筛选并刷新保留；添加窗口分节日与角色两页", async ({
   page,
   context,
