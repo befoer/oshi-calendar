@@ -5,7 +5,6 @@ import {
   CalendarDays,
   Loader2,
   Plus,
-  Share2,
   Search,
   SlidersHorizontal,
   Star,
@@ -13,6 +12,7 @@ import {
 import type { Character, Data } from "../domain";
 import { daysToBirthday, sortCharacters } from "../character-sort";
 import { SelectMenu } from "../select-menu";
+import { AcgDnaMark } from "../acg-dna-mark";
 import {
   Avatar,
   Empty,
@@ -87,7 +87,7 @@ export function Characters({
               {exportingAcg ? (
                 <Loader2 className="spin" size={17} />
               ) : (
-                <Share2 size={17} />
+                <AcgDnaMark size={14} />
               )}
               导入次元属性
             </button>
