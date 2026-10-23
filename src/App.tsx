@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { authorBilibiliURL, authorName, projectRepoURL } from "./links";
 import { sendToAcgDna } from "./acg-dna";
+import { oldCachesCleared } from "./cache-cleanup";
 import { AcgImportDialog, useAcgDnaReceive } from "./acg-dna-receive";
 import { registerSW } from "virtual:pwa-register";
 import {
@@ -908,11 +909,12 @@ function SettingsView({
   };
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    navigator.storage
-      ?.estimate()
-      .then((v) =>
-        setStorage(`${((v.usage ?? 0) / 1024 / 1024).toFixed(1)} MB`),
-      );
+    // 等旧的图片缓存清掉后再统计，避免显示清理前的大小
+    void oldCachesCleared
+      .then(() => navigator.storage?.estimate())
+      .then((v) => {
+        if (v) setStorage(`${((v.usage ?? 0) / 1024 / 1024).toFixed(1)} MB`);
+      });
   }, []);
   const test = async () => {
     setTesting(true);

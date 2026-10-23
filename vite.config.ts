@@ -89,7 +89,7 @@ export default defineConfig({
             options: {
               cacheName: "webfonts",
               expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {
@@ -101,15 +101,9 @@ export default defineConfig({
               cacheableResponse: { statuses: [200] },
             },
           },
-          {
-            urlPattern: /^https:\/\/lain\.bgm\.tv\//,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "bangumi-portraits",
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
+          // 不缓存 lain.bgm.tv 的图片：跨域图片是 opaque 响应，Chrome 按每条约 7–9 MB
+          // 计入存储配额（实际只有几十 KB），曾让本地存储涨到几百 MB。
+          // 角色头像已经缩小后存进 IndexedDB，搜索缩略图不需要离线缓存。
         ],
       },
     }),
