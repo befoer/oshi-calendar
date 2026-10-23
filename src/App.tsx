@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { authorBilibiliURL, authorName, projectRepoURL } from "./links";
 import { sendToAcgDna } from "./acg-dna";
+import { AcgImportDialog, useAcgDnaReceive } from "./acg-dna-receive";
 import { registerSW } from "virtual:pwa-register";
 import {
   db,
@@ -143,6 +144,7 @@ export default function App() {
     } | null>(null);
   const [chatWith, setChatWith] = useState<Character | null>(null);
   const [exportingAcg, setExportingAcg] = useState(false);
+  const acgImport = useAcgDnaReceive(ready);
   const [swUpdate, setSwUpdate] = useState<
     ((reload?: boolean) => Promise<void>) | null
   >(null);
@@ -612,6 +614,22 @@ export default function App() {
               title: taskEdit.title,
             })
           }
+        />
+      )}
+      {acgImport.incoming && (
+        <AcgImportDialog
+          incoming={acgImport.incoming}
+          data={data}
+          onClose={() => {
+            acgImport.reply(0);
+            acgImport.close();
+          }}
+          onDone={(count) => {
+            acgImport.reply(count);
+            acgImport.close();
+            setPage("characters");
+            notify(`已从次元属性导入 ${count} 个角色`);
+          }}
         />
       )}
       {chatWith && (

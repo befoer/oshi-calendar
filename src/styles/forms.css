@@ -1368,3 +1368,50 @@
   white-space: nowrap;
 }
 .link-button:hover { background: var(--surface-3); }
+
+/* 从次元属性导入角色的确认列表 */
+.acg-import-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  max-height: 50vh;
+  margin: 0 0 10px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.acg-import-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.acg-import-list li.skipped { opacity: 0.5; }
+.acg-import-list img,
+.acg-import-avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top;
+}
+.acg-import-avatar {
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-weight: 700;
+}
+.acg-import-list li > span { display: grid; min-width: 0; }
+.acg-import-list strong,
+.acg-import-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acg-import-list small { color: var(--muted); font-size: 12px; }
