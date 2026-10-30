@@ -14,6 +14,7 @@ import {
 import { fileURLToPath } from "node:url";
 import electronUpdater from "electron-updater";
 import { createInstalledUpdates } from "./installed-updates.mjs";
+import { createPortableUpdates } from "./portable-updates.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const port = 36524;
@@ -111,6 +112,17 @@ function createWindow() {
     webPreferences: { preload: join(here, "..", "electron", "preload.cjs") },
   });
   main.once("ready-to-show", () => main?.show());
+  main.webContents.once("did-finish-load", () => {
+    const ack = process.env.OSHI_PORTABLE_UPDATE_ACK;
+    if (
+      ack &&
+      process.env.PORTABLE_EXECUTABLE_FILE &&
+      dirname(dirname(ack)) === dirname(process.env.PORTABLE_EXECUTABLE_FILE) &&
+      /^\.oshi-update-/.test(dirname(ack).split(/[\\/]/).at(-1)) &&
+      ack.endsWith("started")
+    )
+      void writeFile(ack, "ready").catch(() => {});
+  });
   main.on("closed", () => (main = null));
   void main.loadURL(`${origin}/`);
 }
@@ -118,17 +130,27 @@ function createWindow() {
 // ---------- 在线更新 ----------
 // 用 Electron 自己的网络（跟随系统代理）访问 GitHub
 let updateChecker;
+const publishUpdate = (state) => {
+  if (state.status === "error") updateChecker?.clear();
+  if (main && !main.isDestroyed())
+    main.webContents.send("desktop:update-state", state);
+};
 const updates = installed
   ? createInstalledUpdates(
       electronUpdater.autoUpdater,
       app.getVersion(),
-      (state) => {
-        if (state.status === "error") updateChecker?.clear();
-        if (main && !main.isDestroyed())
-          main.webContents.send("desktop:update-state", state);
-      },
+      publishUpdate,
     )
-  : null;
+  : app.isPackaged && process.env.PORTABLE_EXECUTABLE_FILE
+    ? createPortableUpdates({
+        current: app.getVersion(),
+        target: process.env.PORTABLE_EXECUTABLE_FILE,
+        helper: join(here, "portable-updater.exe"),
+        fetchImpl: (url, init) => net.fetch(url, init),
+        quit: () => app.quit(),
+        publish: publishUpdate,
+      })
+    : null;
 const updateCacheFile = () =>
   join(app.getPath("userData"), "update-check-cache.json");
 updateChecker = createUpdateChecker(
@@ -138,7 +160,7 @@ updateChecker = createUpdateChecker(
       : checkForUpdate(app.getVersion(), (url, init) => net.fetch(url, init)),
   {
     current: app.getVersion(),
-    cacheAvailable: !installed,
+    cacheAvailable: !updates,
     readCache: async () =>
       JSON.parse(await readFile(updateCacheFile(), "utf8")),
     writeCache: async (cache) =>
@@ -186,7 +208,7 @@ ipcMain.handle("desktop:install-update", async () => {
     cancelId: 1,
     defaultId: 0,
   });
-  if (response === 0) updates?.install();
+  if (response === 0) await updates?.install();
 });
 ipcMain.handle("desktop:open-download", (_event, url) => {
   if (isDownloadURL(url)) void shell.openExternal(url);
@@ -204,10 +226,10 @@ async function remindUpdate() {
     message: `发现新版本 ${result.latest}（当前 ${result.current}）`,
     detail:
       (result.notes ? `${result.notes}\n\n` : "") +
-      (installed
-        ? "下载完成后，可在设置中重启并安装。角色和设置会自动保留。"
+      (updates
+        ? "下载完成后，可在设置中重启并更新。角色和设置会自动保留。"
         : "可下载新版安装包。首次改用安装版前，请从设置导出 JSON 备份，安装后导入；以后可在软件内更新。"),
-    buttons: [installed ? "下载更新" : "下载新版", "稍后", "跳过这个版本"],
+    buttons: [updates ? "下载更新" : "下载新版", "稍后", "跳过这个版本"],
     defaultId: 0,
     cancelId: 1,
     noLink: true,

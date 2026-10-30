@@ -86,7 +86,7 @@
       "icon": "scripts/launcher.ico"
     },
     "portable": {
-      "artifactName": "推日-${version}-便携版.exe"
+      "artifactName": "oshi-calendar-${version}-portable.exe"
     },
     "nsis": {
       "artifactName": "oshi-calendar-${version}-setup.exe",
@@ -101,7 +101,8 @@
       "repo": "oshi-calendar",
       "releaseType": "release"
     },
-    "artifactName": "推日-${version}-文件夹版.${ext}"
+    "afterAllArtifactBuild": "scripts/portable-release.mjs",
+    "artifactName": "oshi-calendar-${version}-folder.${ext}"
   },
   "description": "推日 · 角色创作日历",
   "author": "烧猫定食",

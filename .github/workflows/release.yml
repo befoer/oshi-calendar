@@ -51,3 +51,4 @@ jobs:
             release/*.exe
             release/*.blockmap
             release/latest.yml
+            release/portable-update.json
