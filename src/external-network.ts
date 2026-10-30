@@ -49,7 +49,9 @@ export async function externalJSON(
   try {
     const response = await fetch(url, {
       ...init,
-      signal: init.signal ?? controller.signal,
+      signal: init.signal
+        ? AbortSignal.any([init.signal, controller.signal])
+        : controller.signal,
     });
     if (!response.ok) {
       issue = {
@@ -61,6 +63,7 @@ export async function externalJSON(
     }
     return await response.json();
   } catch (error) {
+    if (init.signal?.aborted) throw error;
     if (localCharacterService() && !(error instanceof ExternalRequestError)) {
       clearTimeout(timer);
       try {
@@ -73,7 +76,9 @@ export async function externalJSON(
             path: endpoint.pathname.replace(/^\/v0/, "") + endpoint.search,
             ...(init.body ? { body: JSON.parse(String(init.body)) } : {}),
           }),
-          signal: AbortSignal.timeout(18000),
+          signal: init.signal
+            ? AbortSignal.any([init.signal, AbortSignal.timeout(18000)])
+            : AbortSignal.timeout(18000),
         });
         if (response.ok) return await response.json();
         const result = await response.json().catch(() => null);
@@ -93,6 +98,7 @@ export async function externalJSON(
           throw new ExternalRequestError(issue);
         }
       } catch (fallbackError) {
+        if (init.signal?.aborted) throw fallbackError;
         if (fallbackError instanceof ExternalRequestError) throw fallbackError;
         /* Keep the original failure and notify only after both paths fail. */
       }
@@ -114,7 +120,12 @@ export async function externalJSON(
     throw error;
   } finally {
     clearTimeout(timer);
-    if (issue && !options.quiet && quietDepth === 0 && typeof window !== "undefined")
+    if (
+      issue &&
+      !options.quiet &&
+      quietDepth === 0 &&
+      typeof window !== "undefined"
+    )
       window.dispatchEvent(
         new CustomEvent<NetworkIssue>("character-network-issue", {
           detail: issue,

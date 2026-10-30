@@ -4,6 +4,7 @@ import { VitePWA } from "vite-plugin-pwa";
 import { handleWebTools } from "./scripts/web-tools.mjs";
 const buildId = new Date().toISOString();
 export default defineConfig({
+  preview: { host: "127.0.0.1", port: 36524, strictPort: true },
   define: { __APP_BUILD__: JSON.stringify(buildId) },
   build: {
     rollupOptions: {

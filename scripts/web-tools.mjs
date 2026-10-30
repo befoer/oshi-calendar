@@ -610,6 +610,14 @@ async function handleCharacterTools(req, res, path) {
         let query;
         if (
           variables &&
+          Object.keys(variables).length === 2 &&
+          variables.birthday === true &&
+          Number.isInteger(variables.page) &&
+          variables.page >= 1 && variables.page <= 100
+        )
+          query = `query($birthday: Boolean!, $page: Int!) { Page(page: $page, perPage: 50) { pageInfo { hasNextPage } characters(isBirthday: $birthday, sort: FAVOURITES_DESC) { ${fields} favourites gender } } }`;
+        else if (
+          variables &&
           Object.keys(variables).length === 1 &&
           Number.isInteger(variables.id) &&
           variables.id > 0

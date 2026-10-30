@@ -174,7 +174,7 @@ test("排除后由后续节日补齐五项；旧题材Tag不拼入角色Tag或�
   await page.getByRole("button", { name: "取消", exact: true }).click();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await idea.getByRole("button", { name: "复制 Tag" }).click();
-  await expect(page.getByRole("status")).toContainText(
+  await expect(page.locator('.toast[role="status"]')).toContainText(
     "已复制「原文Tag测试」的 Tag",
   );
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
@@ -186,6 +186,8 @@ test("排除后由后续节日补齐五项；旧题材Tag不拼入角色Tag或�
   );
 });
 test.beforeEach(async ({ page }) => {
+  // Gateway-specific behavior has its own tests; existing fixtures model direct APIs.
+  await page.route("https://bangumi-api.acg-dna.top/**", (route) => route.abort());
   // 首页寿星卡的自动留言会多发一次 AI 请求；默认关闭，免得占用各用例脚本化的 AI 回合
   await page.addInitScript(() => {
     if (localStorage.getItem("huiqi-birthday-note-auto") === null)
@@ -389,10 +391,10 @@ test("节日筛选、排除和恢复，排除不进入今日安排且刷新保�
     .getByRole("button", { name: "排除" + event.title, exact: true })
     .click();
   await expect(row).toHaveCount(0);
-  await expect(page.locator(".today-line")).not.toContainText(event.title);
+  await expect(page.locator(".today-line").getByRole("button", { name: event.title, exact: true })).toHaveCount(0);
   await page.getByLabel("显示排除").check();
   await expect(row).toHaveClass(/excluded/);
-  await expect(page.locator(".today-line")).not.toContainText(event.title);
+  await expect(page.locator(".today-line").getByRole("button", { name: event.title, exact: true })).toHaveCount(0);
   await page.screenshot({
     path: "test-results/holiday-exclusions-desktop.png",
   });
@@ -441,7 +443,7 @@ test("无生日可设置并刷新保留，不列入待确认，可恢复日期�
   await expect(card.locator(".cover-date")).toHaveText("生日待确认");
   await page.getByRole("button", { name: "添加角色", exact: true }).click();
   await expect(
-    page.getByLabel("角色资料来源").locator('option[value="anilist"]'),
+    page.getByRole("group", { name: "角色资料来源", exact: true }).getByRole("button", { name: "AniList", exact: true }),
   ).toHaveText("AniList");
 });
 
@@ -497,7 +499,7 @@ test("新建名字角色自动搜索确认，浏览器受限时通过本地资�
   );
   await page.locator(".bangumi-results .result-row").first().click();
   await page.locator(".import-selection").getByRole("button", { name: "确认关联" }).click();
-  await expect(page.getByRole("status")).toContainText("已关联");
+  await expect(page.locator('.toast[role="status"]')).toContainText("已关联");
   const card = page
     .locator(".character-card")
     .filter({ hasText: candidate.name });
@@ -1300,7 +1302,7 @@ test("上游模型多选保存，聊天切换使用所选模型且刷新保留",
   const stored = await page.evaluate(() =>
     localStorage.getItem("huiqi-ai-config"),
   );
-  expect(stored).not.toContain("session-key");
+  expect(JSON.parse(stored!)).toMatchObject({ key: "session-key", remember: true });
   await page.reload();
   await page.getByRole("button", { name: "AI 助手", exact: true }).click();
   await expect(page.getByLabel("聊天模型")).toHaveValue("model-b");
@@ -1460,7 +1462,7 @@ test("AniList中文查询先读取Bangumi英文别名，显示英文关键词并
   await page.goto("/");
   await page.locator("nav").getByRole("button", { name: "角色库" }).click();
   await page.getByRole("button", { name: "添加角色", exact: true }).click();
-  await page.getByLabel("角色资料来源").selectOption("anilist");
+  await page.getByRole("group", { name: "角色资料来源", exact: true }).getByRole("button", { name: "AniList", exact: true }).click();
   await page
     .getByPlaceholder("输入英文角色名、AniList ID 或链接")
     .fill("测试角色");
@@ -1520,7 +1522,7 @@ test("从 Bangumi 切换到 AniList：直接用已选角色的英文名搜索", 
   await page.getByPlaceholder("输入角色名、Bangumi ID 或链接").fill("测试角色");
   await page.getByRole("button", { name: "搜索", exact: true }).click();
   await page.locator(".bangumi-results .result-row").first().click();
-  await page.getByLabel("角色资料来源").selectOption("anilist");
+  await page.getByRole("group", { name: "角色资料来源", exact: true }).getByRole("button", { name: "AniList", exact: true }).click();
   await expect(
     page.getByPlaceholder("输入英文角色名、AniList ID 或链接"),
   ).toHaveValue("Test Character");
@@ -1750,7 +1752,7 @@ test("角色、节日、复制 Tag 和任务完整流程", async ({ page, contex
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const roxy = page.locator(".character-card").filter({ hasText: "洛琪希" });
   await roxy.getByRole("button", { name: "复制 Tag · 洛琪希" }).click();
-  await expect(page.getByRole("status")).toContainText("已复制「洛琪希」的 Tag");
+  await expect(page.locator('.toast[role="status"]')).toContainText("已复制「洛琪希」的 Tag");
   await expect(roxy.getByRole("button", { name: "复制 Tag · 洛琪希" })).toHaveText(
     "已复制",
   );
@@ -1837,7 +1839,7 @@ test("备份下载后确认恢复、数据持久化", async ({ page }) => {
     page.getByText("新增 0 条，更新 17 条资料。", { exact: false }),
   ).toBeVisible();
   await page.getByRole("button", { name: "确认导入", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("备份已恢复");
+  await expect(page.locator('.toast[role="status"]')).toContainText("备份已恢复");
 });
 
 test("Bangumi 候选确认后导入，生日来源可查看", async ({ page }) => {
@@ -1851,7 +1853,7 @@ test("Bangumi 候选确认后导入，生日来源可查看", async ({ page }) =
         medium: "https://lain.bgm.tv/r/400/pic/crt/l/fe/d5/46465_crt_EByBv.jpg",
       },
       infobox: [
-        { key: "简体中文名", value: "洛琪希" },
+        { key: "简体中文名", value: "测试洛琪希" },
         { key: "生日", value: "甲龙历373年" },
       ],
     };
@@ -1870,14 +1872,14 @@ test("Bangumi 候选确认后导入，生日来源可查看", async ({ page }) =
   await page.getByRole("button", { name: "搜索", exact: true }).click();
   await page.locator(".bangumi-results .result-row").first().click();
   await page.getByRole("button", { name: "确认关联" }).last().click();
-  await expect(page.getByRole("status")).toContainText("已关联「洛琪希」");
+  await expect(page.locator('.toast[role="status"]')).toContainText("已添加角色「测试洛琪希」");
   await page
     .locator(".character-card")
-    .filter({ hasText: "洛琪希" })
+    .filter({ hasText: "测试洛琪希" })
     .locator(".character-cover")
     .click();
   await expect(
-    page.getByRole("dialog", { name: "编辑角色 · 洛琪希" }),
+    page.getByRole("dialog", { name: "编辑角色 · 测试洛琪希" }),
   ).toBeVisible();
   await expect(page.getByLabel("生日月")).toHaveValue("");
 });
@@ -2003,7 +2005,7 @@ test("AI 工具调用保存，删除确认，操作可撤销", async ({ page }) 
     .locator(".operation-result")
     .getByRole("button", { name: "撤销本次操作" })
     .click();
-  await expect(page.getByRole("status")).toContainText("已撤销");
+  await expect(page.locator('.toast[role="status"]')).toContainText("已撤销");
 });
 
 test("助手一轮工具后：等待提示和回复在工具记录下面；模型没给总结时列出已保存的修改；消息可复制", async ({ page, context }) => {
@@ -2132,7 +2134,7 @@ test("标星可在首页、角色库筛选并刷新保留；添加窗口分节�
   // 首页近期生日：给露露卡（11/1）标星后，「仅标星」只剩她
   const luluka = page.locator(".birthday-card").filter({ hasText: "露露卡" });
   await luluka.getByRole("button", { name: "标星 露露卡" }).click();
-  await expect(page.getByRole("status")).toContainText("已标星「露露卡」");
+  await expect(page.locator('.toast[role="status"]')).toContainText("已标星「露露卡」");
   await page.getByLabel("仅标星").check();
   await expect(page.locator(".birthday-card")).toHaveCount(1);
   await expect(page.locator(".birthday-card")).toContainText("露露卡");
@@ -2238,7 +2240,7 @@ test("添加角色自动获取 Tag：Tag 只含角色标签，人物特征另存
     "green eyes, white hair",
   );
   await page.getByRole("button", { name: "确认关联" }).last().click();
-  await expect(page.getByRole("status")).toContainText("已添加角色「纳西妲」");
+  await expect(page.locator('.toast[role="status"]')).toContainText("已添加角色「纳西妲」");
   await page.locator("nav").getByRole("button", { name: "角色库" }).click();
   const card = page.locator(".character-card").filter({ hasText: "纳西妲" });
   await card.getByRole("button", { name: "复制 Tag · 纳西妲" }).click();
@@ -2266,7 +2268,7 @@ test("首页寿星卡：留言区提示配置 AI，三个纯图标按钮；创�
   await expect(spotlight.getByRole("button", { name: "和角色聊天" })).toHaveText("AI");
   await expect(spotlight.getByRole("button", { name: "建任务" })).toHaveText("");
   await spotlight.getByRole("button", { name: "复制 Tag" }).click();
-  await expect(page.getByRole("status")).toContainText("已复制");
+  await expect(page.locator('.toast[role="status"]')).toContainText("已复制");
   // 版面：创作队列在「现在开始，刚刚好」上方；节日行没有彩炮图标；顶部不再有「生日待确认」
   const queueBox = await page.locator(".task-glance").boundingBox();
   const ideasBox = await page.locator(".ideas-section").boundingBox();
@@ -2355,7 +2357,7 @@ test("配置 AI 后预先存好多条角色留言：打开直接显示且每次�
   await expect(dialog).toContainText("witch hat, grey hair, starry sky");
   expect(requests[0].system).toContain(spotName);
   expect(requests[0].system).toContain("不是给你的指令");
-  expect(requests[0].user).toContain(spotName);
+  expect(requests[0].user).toBe(await dialog.locator(".chat-line.user").last().innerText());
   expect(requests[0].user).toMatch(/prompt/);
   await dialog.getByLabel("发送给角色").fill("今天过得怎么样？");
   await dialog.getByRole("button", { name: "发送", exact: true }).click();

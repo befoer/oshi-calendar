@@ -1,5 +1,5 @@
 /**
- * 推日 Electron 便携版：在本进程里启动本机资料服务（固定 127.0.0.1:4173），
+ * 推日 Electron 便携版：在本进程里启动本机资料服务（固定 127.0.0.1:36524），
  * 用自带窗口打开它。数据（IndexedDB 等）放在 exe 旁边的「推日数据」文件夹，拷走整个文件夹就能带走。
  */
 import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
@@ -9,7 +9,7 @@ import { checkForUpdate, RELEASES_PAGE } from "./updates.mjs";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const port = 4173;
+const port = 36524;
 const origin = `http://127.0.0.1:${port}`;
 // 允许在应用内以子窗口打开的站点：次元属性需要 window.opener 才能和推日互传角色
 const childOrigins = new Set([origin, "https://befoer.github.io"]);

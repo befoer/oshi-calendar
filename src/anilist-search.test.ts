@@ -48,14 +48,14 @@ it("中文搜索先取得Bangumi英文别名，AniList不接收中文关键词",
     "fetch",
     vi.fn(async (url: unknown, init: any) => {
       calls.push(String(url));
-      if (String(url).includes("search/characters")) {
-        expect(JSON.parse(init.body).keyword).toBe("中文角色");
+      if (String(url).includes("/v1/search?")) {
+        expect(new URL(String(url)).searchParams.get("query")).toBe("中文角色");
         return new Response(
           JSON.stringify({ data: [{ id: bgm.id, name: bgm.name }] }),
         );
       }
       if (String(url).endsWith("subjects")) return new Response("[]");
-      if (String(url).includes("api.bgm.tv"))
+      if (String(url).startsWith("https://bangumi-api.acg-dna.top/"))
         return new Response(JSON.stringify(bgm));
       expect(JSON.parse(init.body).variables.search).toBe("English Character");
       return new Response(
@@ -66,7 +66,10 @@ it("中文搜索先取得Bangumi英文别名，AniList不接收中文关键词",
   const results = await searchAniList("中文角色");
   expect(results[0].id).toBe(ani.id);
   expect(calls.at(-1)).toBe("https://graphql.anilist.co");
-  expect(calls.filter((url) => url.includes("api.bgm.tv"))).toHaveLength(3);
+  expect(
+    calls.filter((url) => url.startsWith("https://bangumi-api.acg-dna.top/")),
+  ).toHaveLength(3);
+  expect(calls.some((url) => url.includes("api.bgm.tv"))).toBe(false);
 });
 it("生日备用查询复用Bangumi返回值，英文名优先于旧别名，并核对身份", async () => {
   const c = newCharacter("中文角色");
@@ -127,7 +130,9 @@ it("直接输入英文名时不经过 Bangumi，不会被重名拦住", async ()
       calls.push(String(url));
       expect(String(url)).toBe("https://graphql.anilist.co");
       expect(JSON.parse(init.body).variables.search).toBe("Columbia");
-      return new Response(JSON.stringify({ data: { Page: { characters: [ani] } } }));
+      return new Response(
+        JSON.stringify({ data: { Page: { characters: [ani] } } }),
+      );
     }),
   );
   expect((await searchAniList("Columbia"))[0].id).toBe(ani.id);

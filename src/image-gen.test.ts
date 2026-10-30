@@ -6,6 +6,8 @@ import {
   extractImage,
   generateImage,
   imageConfigured,
+  loadImageConfig,
+  saveImageConfig,
   type ImageConfig,
 } from "./image-gen";
 import { pickImagePrompt } from "./chat-prompts";
@@ -28,6 +30,26 @@ const base: ImageConfig = {
   authStyle: "bearer",
 };
 const pngB64 = "iVBORw0KGgo" + "A".repeat(500);
+
+it("生图密钥默认记住，兼容旧会话配置，重新打开后仍能读取", () => {
+  const local = new Map<string, string>();
+  const session = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => local.get(key) ?? null,
+    setItem: (key: string, value: string) => local.set(key, value),
+  });
+  vi.stubGlobal("sessionStorage", {
+    getItem: (key: string) => session.get(key) ?? null,
+    setItem: (key: string, value: string) => session.set(key, value),
+  });
+  vi.stubGlobal("window", { dispatchEvent: vi.fn() });
+  local.set("huiqi-image-config", JSON.stringify({ ...base, key: "" }));
+  session.set("huiqi-image-key", base.key);
+  expect(loadImageConfig()).toMatchObject({ key: base.key, remember: true });
+  saveImageConfig(base);
+  session.clear();
+  expect(loadImageConfig()).toMatchObject({ key: base.key, remember: true });
+});
 
 it("不同接口的返回里都能找到图：url、b64_json、data URI、Markdown、content 数组、纯 base64", () => {
   expect(extractImage({ data: [{ url: "https://x.test/a.png", size_bytes: 1 }] })).toBe(

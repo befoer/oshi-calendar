@@ -21,7 +21,7 @@ await page.route("https://api.bgm.tv/v0/**", (route) =>
 await page.route("https://graphql.anilist.co/**", (route) =>
   route.fulfill({ json: { data: { Page: { characters: [] } } } }),
 );
-await page.goto("http://127.0.0.1:4173");
+await page.goto("http://127.0.0.1:36524");
 await page
   .getByRole("heading", { name: "把下一次创作，安排在好日子。" })
   .waitFor();

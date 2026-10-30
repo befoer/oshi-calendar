@@ -1271,6 +1271,17 @@ function SettingsView({
             />
           </label>
           <label>
+            API Key
+            <input
+              type="password"
+              autoComplete="off"
+              value={config.key}
+              onChange={(e) => setConfig({ ...config, key: e.target.value })}
+              placeholder="仅保存在此设备"
+            />
+          </label>
+          <p className="muted">密钥默认保存在本机浏览器。</p>
+          <label>
             模型
             <ModelCombobox
               ariaLabel="模型"
@@ -1399,26 +1410,6 @@ function SettingsView({
           <p className="muted">
             可多选常用模型，保存后在聊天窗口切换。手动填写的模型也会加入已选列表；上游列表不代表所有模型都支持聊天或工具调用。
           </p>
-          <label>
-            API Key
-            <input
-              type="password"
-              autoComplete="off"
-              value={config.key}
-              onChange={(e) => setConfig({ ...config, key: e.target.value })}
-              placeholder="仅保存在此设备"
-            />
-          </label>
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={config.remember}
-              onChange={(e) =>
-                setConfig({ ...config, remember: e.target.checked })
-              }
-            />
-            记住密钥（本机浏览器）
-          </label>
           <label className="check-label">
             <input
               type="checkbox"

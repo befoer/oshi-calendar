@@ -510,6 +510,92 @@
   padding: 8px;
 }
 
+.birthday-ranking {
+  margin-bottom: 34px;
+}
+.birthday-ranking-caption {
+  margin: -8px 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.birthday-ranking-list {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.birthday-ranking-list li {
+  min-width: 0;
+}
+.ranking-more {
+  display: flex;
+}
+.ranking-more .birthday-more {
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+}
+.ranking-tools {
+  flex-wrap: wrap;
+}
+.ranking-card {
+  display: block;
+  overflow: hidden;
+  height: 100%;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  transition: box-shadow 0.2s;
+}
+.ranking-card:hover {
+  box-shadow: var(--shadow-md);
+}
+.ranking-portrait {
+  position: relative;
+}
+.ranking-position {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  font-weight: 800;
+}
+.ranking-card-body {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+}
+.ranking-card-body strong,
+.ranking-work {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ranking-card-body strong {
+  font-size: 14px;
+}
+.ranking-work {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ranking-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 12px 0;
+}
+
 /* 创作队列速览 */
 .glance-list {
   display: grid;

@@ -64,11 +64,13 @@ export function loadImageConfig(): ImageConfig {
         : "random",
     size: text(raw.size).trim(),
     syntax:
-      raw.syntax === "natural" || raw.syntax === "chinese" ? raw.syntax : "tags",
+      raw.syntax === "natural" || raw.syntax === "chinese"
+        ? raw.syntax
+        : "tags",
     prefix: text(raw.prefix),
     suffix: text(raw.suffix),
     key: remember ? text(raw.key) : sessionKey,
-    remember,
+    remember: true,
     customUrl: text(raw.customUrl),
     customBody: text(raw.customBody, defaultCustomBody),
     authStyle: raw.authStyle === "x-api-key" ? "x-api-key" : "bearer",
@@ -77,7 +79,7 @@ export function loadImageConfig(): ImageConfig {
 export function saveImageConfig(config: ImageConfig) {
   localStorage.setItem(
     CONFIG_KEY,
-    JSON.stringify({ ...config, key: config.remember ? config.key : "" }),
+    JSON.stringify({ ...config, remember: true }),
   );
   try {
     sessionStorage.setItem(SESSION_KEY, config.key);
@@ -104,7 +106,8 @@ export function resolveSize(
   random = Math.random,
 ): { ratio: string; size: string } {
   if (config.sizeMode === "none") return { ratio: "", size: "" };
-  if (config.sizeMode === "custom") return { ratio: "", size: config.size.trim() };
+  if (config.sizeMode === "custom")
+    return { ratio: "", size: config.size.trim() };
   const ratio =
     config.sizeMode === "random"
       ? (["3:4", "4:3", "1:1"] as const)[Math.floor(random() * 3)]
@@ -147,7 +150,9 @@ export function buildImageRequest(
     try {
       JSON.parse(body);
     } catch {
-      throw new Error("请求体模板不是有效的 JSON，请检查设置里的「请求体模板」");
+      throw new Error(
+        "请求体模板不是有效的 JSON，请检查设置里的「请求体模板」",
+      );
     }
     return { url: config.customUrl.trim(), headers, body };
   }
@@ -195,7 +200,14 @@ const fromString = (s: string): string | null => {
   return null;
 };
 const b64Keys = new Set(["b64_json", "b64", "base64", "image_base64"]);
-const urlKeys = new Set(["url", "image_url", "image", "src", "output", "result"]);
+const urlKeys = new Set([
+  "url",
+  "image_url",
+  "image",
+  "src",
+  "output",
+  "result",
+]);
 
 /** 在任意返回内容里找第一张图：返回可以直接放进 <img src> 的地址或 data URI。 */
 export function extractImage(value: unknown, depth = 0): string | null {
@@ -218,7 +230,10 @@ export function extractImage(value: unknown, depth = 0): string | null {
   for (const [key, v] of entries) {
     if (!urlKeys.has(key)) continue;
     const direct = typeof v === "string" ? v : (v as { url?: unknown })?.url;
-    if (typeof direct === "string" && /^(https?:\/\/|data:image\/)/i.test(direct))
+    if (
+      typeof direct === "string" &&
+      /^(https?:\/\/|data:image\/)/i.test(direct)
+    )
       return direct;
   }
   for (const [, v] of entries) {

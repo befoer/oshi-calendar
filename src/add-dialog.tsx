@@ -26,11 +26,23 @@ import {
   searchAniListLookup,
   bangumiEnglishName,
 } from "./anilist";
-import { newCharacter, type Character, type CustomEvent, type Data } from "./domain";
+import {
+  newCharacter,
+  type Character,
+  type CustomEvent,
+  type Data,
+} from "./domain";
 import { put } from "./store";
 import { Avatar, ErrorText, Modal } from "./ui";
 import { EventForm, defaultTag, withTag } from "./editors";
 import { TagField, type TagValue } from "./tag-field";
+import { AvatarCandidates } from "./avatar-candidates";
+import {
+  getBangumiConnection,
+  setBangumiConnection,
+  useBangumiConnection,
+  type BangumiConnection,
+} from "./bangumi-connection";
 
 export type AddTab = "event" | "character";
 
@@ -80,7 +92,12 @@ export function AddDialog({
         </button>
       </div>
       {tab === "event" ? (
-        <EventForm event={event} onClose={onClose} onSaved={onEventSaved} embedded />
+        <EventForm
+          event={event}
+          onClose={onClose}
+          onSaved={onEventSaved}
+          embedded
+        />
       ) : (
         <CharacterSearch
           target="new"
@@ -159,6 +176,10 @@ export function CharacterSearch({
       ? "anilist"
       : "bangumi",
   );
+  const connection = useBangumiConnection();
+  const searchSeq = useRef(0);
+  const chooseSeq = useRef(0);
+  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
   const [query, setQuery] = useState(
       target === "new"
         ? ""
@@ -170,7 +191,6 @@ export function CharacterSearch({
     ),
     [results, setResults] = useState<BangumiCharacter[]>(initialResults ?? []),
     [selected, setSelected] = useState<BangumiCharacter | null>(null),
-    [linkId, setLinkId] = useState(target === "new" ? "" : target.id),
     [fields, setFields] = useState({
       avatar: true,
       aliases: true,
@@ -194,9 +214,13 @@ export function CharacterSearch({
     const provider = source;
     const query = text;
     if (!query.trim()) return;
+    const seq = ++searchSeq.current;
+    chooseSeq.current++;
     setLoading(true);
     setError("");
     setSelected(null);
+    setOpening(null);
+    setWorksLoading(false);
     try {
       try {
         if (
@@ -210,17 +234,21 @@ export function CharacterSearch({
               ? (selected ?? undefined)
               : undefined,
           );
+          if (seq !== searchSeq.current) return;
           setQuery(resolved.name);
           setResults(resolved.results);
-        } else
-          setResults(
-            await (provider === "anilist"
-              ? searchAniList(query.trim())
-              : searchBangumi(query.trim())),
-          );
+        } else {
+          const results = await (provider === "anilist"
+            ? searchAniList(query.trim())
+            : searchBangumi(query.trim()));
+          if (seq !== searchSeq.current) return;
+          setResults(results);
+        }
       } catch (failure) {
+        if (seq !== searchSeq.current) return;
         if (
           provider === "anilist" ||
+          getBangumiConnection() === "direct" ||
           /(?:character\/|^)\d+(?:[/?#].*)?$/.test(query.trim())
         )
           throw failure;
@@ -229,14 +257,18 @@ export function CharacterSearch({
           query.trim(),
           target === "new" ? undefined : target,
         );
+        if (seq !== searchSeq.current) return;
         setQuery(resolved.name);
         setResults(resolved.results);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "搜索失败");
+      if (seq === searchSeq.current)
+        setError(e instanceof Error ? e.message : "搜索失败");
     } finally {
-      setLoading(false);
-      setSearched(true);
+      if (seq === searchSeq.current) {
+        setLoading(false);
+        setSearched(true);
+      }
     }
   };
   const searchedOnOpen = useRef(false);
@@ -248,13 +280,34 @@ export function CharacterSearch({
   }, []);
   // 搜索结果里已有名称、头像、生日等资料：点选后立刻展开预览，
   // 只有 Bangumi 的「出现作品」需要再请求一次，到了再补上（不再整页等待）。
-  const chooseSeq = useRef(0);
   const [opening, setOpening] = useState<string | null>(null);
   const [worksLoading, setWorksLoading] = useState(false);
+  useEffect(
+    () => () => {
+      searchSeq.current++;
+      chooseSeq.current++;
+      searchedOnOpen.current = false;
+    },
+    [],
+  );
+  const switchConnection = (next: BangumiConnection) => {
+    searchSeq.current++;
+    chooseSeq.current++;
+    setBangumiConnection(next);
+    setProvider("bangumi");
+    setSelected(null);
+    setResults([]);
+    setOpening(null);
+    setWorksLoading(false);
+    setLoading(false);
+    setError("");
+    if (query.trim()) void search(query, "bangumi");
+  };
   const show = (detail: BangumiCharacter) => {
     const b = birthdayCandidate(detail);
     setTagValue({ tag: "", traits: "" });
     setSelected(detail);
+    setSelectedAvatar(null);
     setFields((v) => ({
       ...v,
       birthday:
@@ -266,17 +319,6 @@ export function CharacterSearch({
       tag: !existingTag,
       traits: !existingTraits,
     }));
-    if (target === "new")
-      setLinkId(
-        data.characters.find(
-          (c) =>
-            (detail.provider === "anilist"
-              ? c.anilistId === detail.id
-              : c.bangumiId === detail.id) ||
-            c.name === bgmName(detail) ||
-            c.aliases.includes(bgmName(detail)),
-        )?.id ?? "",
-      );
   };
   const choose = async (r: BangumiCharacter) => {
     if (selected && sameCharacter(selected, r)) {
@@ -300,7 +342,9 @@ export function CharacterSearch({
         setWorksLoading(true);
         const works = await fetchBangumiWorks(r.id);
         if (seq !== chooseSeq.current) return;
-        setSelected((cur) => (cur && sameCharacter(cur, r) ? { ...cur, works } : cur));
+        setSelected((cur) =>
+          cur && sameCharacter(cur, r) ? { ...cur, works } : cur,
+        );
         setWorksLoading(false);
         return;
       }
@@ -321,15 +365,13 @@ export function CharacterSearch({
   // 确认关联：合并资料后直接保存，不再打开编辑器
   const confirm = async () => {
     if (!selected || saving) return;
-    const current =
-      target !== "new"
-        ? target
-        : (data.characters.find((c) => c.id === linkId) ??
-          newCharacter(bgmName(selected)));
+    const current = target !== "new" ? target : newCharacter(bgmName(selected));
     const merged = mergeBangumi(current, selected, fields.birthday);
     let result: Character = {
       ...merged,
-      avatarUrl: fields.avatar ? merged.avatarUrl : current.avatarUrl,
+      avatarUrl: fields.avatar
+        ? (selectedAvatar ?? merged.avatarUrl)
+        : current.avatarUrl,
       aliases: fields.aliases ? merged.aliases : current.aliases,
       works: fields.works ? merged.works : current.works,
     };
@@ -340,7 +382,8 @@ export function CharacterSearch({
     setSaving(true);
     setError("");
     try {
-      const added = target === "new" && !data.characters.some((c) => c.id === result.id);
+      const added =
+        target === "new" && !data.characters.some((c) => c.id === result.id);
       await put(
         "characters",
         result,
@@ -360,6 +403,27 @@ export function CharacterSearch({
     tag: existingTag ? "用新 Tag 替换已有 Tag" : "采用 Tag",
     traits: existingTraits ? "用新特征替换已有人物特征" : "采用人物特征",
   } as const;
+  const switchProvider = (next: "bangumi" | "anilist") => {
+    searchSeq.current++;
+    chooseSeq.current++;
+    setLoading(false);
+    setWorksLoading(false);
+    setOpening(null);
+
+    // AniList 只能用英文名搜：从 Bangumi 切过来时，直接用 Bangumi 已选角色（或唯一结果）的英文名
+    const from = selected ?? (results.length === 1 ? results[0] : null);
+    const english =
+      next === "anilist" && from && from.provider !== "anilist"
+        ? bangumiEnglishName(from)
+        : undefined;
+    setProvider(next);
+    setResults([]);
+    setSelected(null);
+    setError("");
+    const text = english ?? (target === "new" ? "" : target.name);
+    setQuery(text);
+    if (english) void search(english, next);
+  };
   const tagTerms = (c: BangumiCharacter) => [
     bangumiEnglishName(c) ?? "",
     c.provider === "anilist" ? c.name : "",
@@ -369,34 +433,26 @@ export function CharacterSearch({
   return (
     <>
       <div className="modal-body">
-        <label>
-          资料来源
-          <select
+        <div className="character-source-field">
+          <span className="character-source-label">资料来源</span>
+          <div
+            className="character-source-slider"
+            role="group"
             aria-label="角色资料来源"
-            value={provider}
-            onChange={(e) => {
-              const next = e.target.value as "bangumi" | "anilist";
-              // AniList 只能用英文名搜：从 Bangumi 切过来时，直接用 Bangumi 已选角色（或唯一结果）的英文名
-              const from =
-                selected ??
-                (results.length === 1 ? results[0] : null);
-              const english =
-                next === "anilist" && from && from.provider !== "anilist"
-                  ? bangumiEnglishName(from)
-                  : undefined;
-              setProvider(next);
-              setResults([]);
-              setSelected(null);
-              setError("");
-              const text = english ?? (target === "new" ? "" : target.name);
-              setQuery(text);
-              if (english) void search(english, next);
-            }}
+            data-provider={provider}
           >
-            <option value="bangumi">Bangumi</option>
-            <option value="anilist">AniList</option>
-          </select>
-        </label>
+            {(["bangumi", "anilist"] as const).map((source) => (
+              <button
+                key={source}
+                type="button"
+                aria-pressed={provider === source}
+                onClick={() => source !== provider && switchProvider(source)}
+              >
+                {source === "bangumi" ? "Bangumi" : "AniList"}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="search-field large">
           <Search size={18} />
           <input
@@ -465,16 +521,35 @@ export function CharacterSearch({
                   {open && selected && (
                     <div className="import-selection">
                       <div className="preview-head">
-                        <Avatar
-                          character={{
-                            ...newCharacter(bgmName(selected)),
-                            avatarUrl:
-                              selected.images?.large ||
-                              selected.images?.medium ||
-                              "",
-                          }}
-                          size="preview"
-                        />
+                        <div className="preview-avatars">
+                          <button
+                            type="button"
+                            className="preview-original-avatar"
+                            aria-label="使用原头像"
+                            aria-pressed={selectedAvatar === null}
+                            onClick={() => setSelectedAvatar(null)}
+                            title="使用原头像"
+                          >
+                            <Avatar
+                              character={{
+                                ...newCharacter(bgmName(selected)),
+                                avatarUrl:
+                                  selected.images?.large ||
+                                  selected.images?.medium ||
+                                  "",
+                              }}
+                              size="preview"
+                            />
+                          </button>
+                          {selected.provider !== "anilist" && (
+                            <AvatarCandidates
+                              key={selected.id}
+                              character={selected}
+                              value={selectedAvatar}
+                              onChange={setSelectedAvatar}
+                            />
+                          )}
+                        </div>
                         <div className="preview-info">
                           <h3>{bgmName(selected)} · 资料预览</h3>
                           <p>
@@ -486,8 +561,9 @@ export function CharacterSearch({
                             生日原文：
                             {birthdayCandidate(selected).raw || "未提供"}
                             <br />
-                            API 月日：{birthdayCandidate(selected).month || "?"} /{" "}
-                            {birthdayCandidate(selected).day || "?"}
+                            API 月日：{birthdayCandidate(selected).month ||
+                              "?"}{" "}
+                            / {birthdayCandidate(selected).day || "?"}
                           </p>
                           <a
                             href={characterSourceURL(selected)}
@@ -499,26 +575,11 @@ export function CharacterSearch({
                           </a>
                         </div>
                       </div>
+
                       {birthdayCandidate(selected).conflict && (
                         <p className="error">
                           资料存在冲突或虚构历法，请核实后再确认月日。
                         </p>
-                      )}
-                      {target === "new" && (
-                        <label>
-                          导入到
-                          <select
-                            value={linkId}
-                            onChange={(e) => setLinkId(e.target.value)}
-                          >
-                            <option value="">新建角色</option>
-                            {data.characters.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
                       )}
                       <TagField
                         key={`${selected.provider ?? "bgm"}-${selected.id}`}
@@ -550,7 +611,10 @@ export function CharacterSearch({
                                 (key === "traits" && !tagValue.traits.trim())
                               }
                               onChange={(e) =>
-                                setFields({ ...fields, [key]: e.target.checked })
+                                setFields({
+                                  ...fields,
+                                  [key]: e.target.checked,
+                                })
                               }
                             />
                             {fieldLabels[key]}
@@ -572,9 +636,7 @@ export function CharacterSearch({
             })}
           </div>
         )}
-        {searched && !loading && (
-          <SearchHint provider={provider} />
-        )}
+        {searched && !loading && <SearchHint provider={provider} />}
       </div>
       <footer>
         <div className="footer-left">
@@ -584,17 +646,26 @@ export function CharacterSearch({
               手动添加角色
             </button>
           )}
-          <a
-            className="footer-link"
-            href={
-              provider === "anilist" ? "https://anilist.co/" : "https://bgm.tv/"
+          <button
+            className="bangumi-direct-toggle"
+            type="button"
+            role="switch"
+            aria-checked={connection === "direct"}
+            aria-label="直连 Bangumi"
+            title={
+              connection === "direct"
+                ? "已启用直连，点击恢复网关"
+                : "网关不可用时可开启直连"
             }
-            target="_blank"
-            rel="noreferrer"
+            onClick={() =>
+              switchConnection(connection === "direct" ? "gateway" : "direct")
+            }
           >
-            打开 {provider === "anilist" ? "AniList" : "Bangumi"}{" "}
-            <ExternalLink size={14} />
-          </a>
+            <span className="connection-switch-track" aria-hidden="true">
+              <span />
+            </span>
+            直连 Bangumi
+          </button>
         </div>
         <div className="footer-right">
           <button onClick={onClose}>关闭</button>
@@ -604,7 +675,11 @@ export function CharacterSearch({
             title={selected ? "" : "先在列表里点选一个角色"}
             onClick={() => void confirm()}
           >
-            {saving ? <Loader2 className="spin" size={16} /> : <Check size={16} />}
+            {saving ? (
+              <Loader2 className="spin" size={16} />
+            ) : (
+              <Check size={16} />
+            )}
             确认关联
           </button>
         </div>

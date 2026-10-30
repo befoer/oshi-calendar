@@ -7,7 +7,10 @@ import {
   type Pool,
 } from "./birthday-note";
 
-const pool = (soon: [string, number][], today: [string, number][] = []): Pool => ({
+const pool = (
+  soon: [string, number][],
+  today: [string, number][] = [],
+): Pool => ({
   name: "露露卡",
   soon: soon.map(([t, n]) => ({ t, n })),
   today: today.map(([t, n]) => ({ t, n })),
@@ -48,7 +51,13 @@ it("新留言并入：去重、带上看过次数 0；超过 12 条时丢掉看�
     `旧${i}`,
     i < 6 ? 2 : 1,
   ]);
-  const next = addToPool(pool(seen), "露露卡", "soon", ["旧0", "新1", "新2"], 9);
+  const next = addToPool(
+    pool(seen),
+    "露露卡",
+    "soon",
+    ["旧0", "新1", "新2"],
+    9,
+  );
   const texts = next.soon.map((item) => item.t);
   expect(texts).toHaveLength(12);
   expect(texts).toContain("新1");
@@ -70,6 +79,25 @@ it("角色改名后旧留言作废，重新开始存", () => {
 
 it("快捷回复跟着留言池走：加留言时保留，角色改名后作废", () => {
   const withReplies = { ...pool([["旧", 1]]), replies: ["聊点什么？"] };
-  expect(addToPool(withReplies, "露露卡", "soon", ["新"]).replies).toEqual(["聊点什么？"]);
-  expect(addToPool(withReplies, "新名字", "soon", ["新"]).replies).toBeUndefined();
+  expect(addToPool(withReplies, "露露卡", "soon", ["新"]).replies).toEqual([
+    "聊点什么？",
+  ]);
+  expect(
+    addToPool(withReplies, "新名字", "soon", ["新"]).replies,
+  ).toBeUndefined();
+});
+
+it("已有占位留言不会展示或计入库存，补货时清理无效缓存", () => {
+  const old = pool([
+    ["messages placeholder", 0],
+    ["placeholder", 0],
+    ["来一起过生日吧。", 1],
+  ]);
+  expect(pickNote(old, "soon")?.t).toBe("来一起过生日吧。");
+  expect(unseenCount(old, "soon")).toBe(0);
+  expect(
+    addToPool(old, "露露卡", "soon", ["messages", "今天也要开心哦。"]).soon.map(
+      (item) => item.t,
+    ),
+  ).toEqual(["来一起过生日吧。", "今天也要开心哦。"]);
 });

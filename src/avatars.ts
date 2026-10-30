@@ -1,5 +1,7 @@
 import type { Character } from "./domain";
 import { avatarFallbackURL } from "./external-network";
+import { bangumiImageGatewayURL } from "./bangumi-gateway";
+import { getBangumiConnection } from "./bangumi-connection";
 import { patchCharacter } from "./store";
 
 /**
@@ -11,8 +13,16 @@ export const isRemoteAvatar = (url: string) => /^https?:\/\//i.test(url);
 
 async function download(url: string): Promise<Blob> {
   const fallback = avatarFallbackURL(url);
-  // 本机资料服务同源、可带代理，优先；浏览器直连通常受跨域限制
-  const attempts = fallback ? [fallback, url] : [url];
+  const gateway = bangumiImageGatewayURL(url);
+  // Bangumi 先走图片网关，本机服务与原图地址继续作为回退。
+  const sources =
+    getBangumiConnection() === "direct" &&
+    /^https?:\/\/lain\.bgm\.tv\//i.test(url)
+      ? [url, fallback]
+      : [gateway, fallback, url];
+  const attempts = sources.filter((source): source is string =>
+    Boolean(source),
+  );
   let failure = "图片下载失败";
   for (const source of attempts) {
     try {

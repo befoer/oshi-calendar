@@ -90,7 +90,7 @@ describe("上游模型与配置", () => {
       fetchModels({ ...config, endpoint: "javascript:alert(1)" }),
     ).rejects.toThrow("HTTP");
   });
-  it("旧单模型配置兼容，多模型持久化且会话密钥不落本机配置", () => {
+  it("旧单模型配置兼容，多模型与密钥默认持久化", () => {
     const local = new Map<string, string>();
     const session = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -108,6 +108,11 @@ describe("上游模型与配置", () => {
         JSON.stringify({ ...config, key: "", model: "legacy" }),
       );
       expect(loadConfig().models).toEqual(["legacy"]);
+      session.set("huiqi-ai-key", "legacy-session-secret");
+      expect(loadConfig()).toMatchObject({
+        key: "legacy-session-secret",
+        remember: true,
+      });
       saveConfig({
         ...config,
         key: "session-secret",
@@ -119,7 +124,11 @@ describe("上游模型与配置", () => {
         models: ["model-a", "model-b"],
         key: "session-secret",
       });
-      expect(local.get("huiqi-ai-config")).not.toContain("session-secret");
+      session.clear();
+      expect(loadConfig()).toMatchObject({
+        key: "session-secret",
+        remember: true,
+      });
       expect(
         selectedModels({ model: "manual", models: ["manual", "model-a", ""] }),
       ).toEqual(["manual", "model-a"]);
@@ -560,9 +569,7 @@ describe("AI 操作约束", () => {
     expect(systemPrompt).toContain("lookup_character_tags");
     expect(JSON.parse(toolResult)).toMatchObject({
       source: "Danbooru",
-      candidates: [
-        { tag: "roxy migurdia", traits: "blue hair", posts: 2400 },
-      ],
+      candidates: [{ tag: "roxy migurdia", traits: "blue hair", posts: 2400 }],
     });
   });
   it("批量补全已有角色：没传 characterId 也补全同名角色而不另建；需确认的跳过并继续处理其余角色", async () => {
@@ -600,7 +607,8 @@ describe("AI 操作约束", () => {
         }
         const body = JSON.parse(String((init as RequestInit).body));
         round++;
-        if (round === 2) secondRound = body.messages.filter((m: any) => m.role === "tool");
+        if (round === 2)
+          secondRound = body.messages.filter((m: any) => m.role === "tool");
         const call = (id: string, bangumiId: number) => ({
           id,
           type: "function",
@@ -620,14 +628,22 @@ describe("AI 操作约束", () => {
                         content: null,
                         tool_calls: [call("a", 46465), call("b", 999)],
                       }
-                    : { role: "assistant", content: "已补全洛琪希；冲突角色需要确认。" },
+                    : {
+                        role: "assistant",
+                        content: "已补全洛琪希；冲突角色需要确认。",
+                      },
               },
             ],
           }),
         );
       }),
     );
-    const r = await runAssistant(config, [], new AbortController().signal, () => {});
+    const r = await runAssistant(
+      config,
+      [],
+      new AbortController().signal,
+      () => {},
+    );
     expect(r.pending).toBeUndefined();
     expect(r.text).toContain("冲突角色需要确认");
     expect(await db.characters.count()).toBe(1);
@@ -638,7 +654,11 @@ describe("AI 操作约束", () => {
     });
   });
   it("名字写法、作品名对不上时先请用户确认；用户确认后带 userConfirmed 即可关联已有角色", async () => {
-    const patchouli = { ...newCharacter("帕秋莉"), id: "pc", works: ["东方Project"] };
+    const patchouli = {
+      ...newCharacter("帕秋莉"),
+      id: "pc",
+      works: ["东方Project"],
+    };
     await db.characters.put(patchouli);
     const run = async (args: Record<string, unknown>) => {
       let round = 0;
@@ -692,7 +712,11 @@ describe("AI 操作约束", () => {
     expect(asked.pending?.reasons.join()).toContain("身份不明确");
     expect((await db.characters.get("pc"))?.bangumiId).toBeNull();
     await clearAssistantCheckpoint();
-    const done = await run({ bangumiId: 488, characterId: "pc", userConfirmed: true });
+    const done = await run({
+      bangumiId: 488,
+      characterId: "pc",
+      userConfirmed: true,
+    });
     expect(done.pending).toBeUndefined();
     expect((await db.characters.get("pc"))?.bangumiId).toBe(488);
     expect(await db.characters.count()).toBe(1);
@@ -822,7 +846,11 @@ describe("AI 操作约束", () => {
         JSON.stringify({
           summary: "默认提醒",
           changes: JSON.stringify([
-            { collection: "settings", action: "put", data: { reminderDays: 5 } },
+            {
+              collection: "settings",
+              action: "put",
+              data: { reminderDays: 5 },
+            },
           ]),
         }),
       ),

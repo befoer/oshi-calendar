@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>推日 · 封面</title>
+<style>
+  /* 资源圆体：放在 宣传视频/素材/fonts，由 scenes.mjs 以 /vfonts/ 提供 */
+  @font-face { font-family: "ZiYuan Round"; font-weight: 900; src: url("/vfonts/资源圆体 Heavy.ttf"); }
+  @font-face { font-family: "ZiYuan Round"; font-weight: 500; src: url("/vfonts/资源圆体 Medium.ttf"); }
+
+  /* 配色方案：?theme=名称。g1→g2→g3 是左侧过渡的渐变色，outline 是标题描边，em 是第二行标题色，pill 是副标题底色 */
+  :root, [data-theme="lavender"] {
+    --g1: #4f46e5; --g2: #8b5cf6; --g3: #ec4899; --outline: #3b2a8f; --em: #ffd6ec;
+    --pill1: #ffffff; --pill2: #ffe4f1; --pill-text: #c0267a; --pill-border: #ffffff; --logo-outline: #3b2a8f;
+  }
+  [data-theme="night"] {
+    --g1: #1e3a8a; --g2: #4338ca; --g3: #7c3aed; --outline: #1e1b4b; --em: #ff8cc8;
+    --pill1: #f472b6; --pill2: #db2777; --pill-text: #ffffff; --pill-border: #ffffff; --logo-outline: #1e1b4b;
+  }
+  [data-theme="peach"] {
+    --g1: #f97316; --g2: #f43f5e; --g3: #a855f7; --outline: #7a1d3f; --em: #fff1a8;
+    --pill1: #4f46e5; --pill2: #7c3aed; --pill-text: #ffffff; --pill-border: #ffffff; --logo-outline: #7a1d3f;
+  }
+  [data-theme="mint"] {
+    --g1: #0284c7; --g2: #6366f1; --g3: #c084fc; --outline: #1e2a6e; --em: #ffd6ec;
+    --pill1: #f472b6; --pill2: #db2777; --pill-text: #ffffff; --pill-border: #ffffff; --logo-outline: #1e2a6e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1200px; overflow: hidden; }
+  body { font-family: "ZiYuan Round", "Microsoft YaHei", sans-serif; color: #fff; position: relative;
+    background: linear-gradient(160deg, var(--g1), var(--g2) 55%, var(--g3)); }
+  /* 背景：角色库截图，缩小并上移，多露出角色卡片 */
+  .shot { position: absolute; right: -330px; top: -40px; width: 1800px; height: 1360px; border-radius: 34px; overflow: hidden;
+    background: #f6f5fb; box-shadow: 0 50px 110px rgba(20,14,60,.4); transform: rotate(-4deg); }
+  /* 整页截图：跳过大部分页头，让角色卡片从上方就开始 */
+  .shot img { width: 100%; display: block; margin-top: -220px; }
+  /* 左侧过渡：多色渐变，再用横向蒙版淡出，约占三分之一，盖住截图左边缘 */
+  .fade { position: absolute; inset: 0; background: linear-gradient(160deg, var(--g1), var(--g2) 55%, var(--g3));
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 30%, rgba(0,0,0,.6) 37%, transparent 45%);
+    mask-image: linear-gradient(90deg, #000 0%, #000 30%, rgba(0,0,0,.6) 37%, transparent 45%); }
+  .badge { position: absolute; left: 190px; top: 110px; background: #fff; color: var(--g1); font-weight: 900; font-size: 46px;
+    padding: 12px 36px; border-radius: 999px; box-shadow: 0 16px 40px rgba(10,6,40,.3); }
+  h1 { position: absolute; left: 180px; top: 245px; white-space: nowrap; font-weight: 900; font-size: 196px; line-height: 1.12;
+    letter-spacing: 4px; color: #fff;
+    text-shadow: 7px 0 0 var(--outline), -7px 0 0 var(--outline), 0 7px 0 var(--outline), 0 -7px 0 var(--outline),
+      5px 5px 0 var(--outline), -5px -5px 0 var(--outline), 5px -5px 0 var(--outline), -5px 5px 0 var(--outline),
+      3px 7px 0 var(--outline), -3px 7px 0 var(--outline), 7px 3px 0 var(--outline), -7px 3px 0 var(--outline),
+      0 18px 40px rgba(20,10,60,.45); }
+  h1 em { font-style: normal; color: var(--em); }
+  .sub { position: absolute; left: 190px; top: 840px; background: linear-gradient(135deg, var(--pill1), var(--pill2));
+    color: var(--pill-text); font-weight: 900; font-size: 56px; padding: 20px 46px; border-radius: 30px;
+    border: 4px solid var(--pill-border); box-shadow: 0 20px 50px rgba(20,10,60,.35); }
+  .logo { position: absolute; left: 190px; bottom: 70px; display: flex; align-items: center; gap: 20px; font-size: 48px; font-weight: 900; color: #fff;
+    text-shadow: 4px 0 0 var(--logo-outline), -4px 0 0 var(--logo-outline), 0 4px 0 var(--logo-outline), 0 -4px 0 var(--logo-outline),
+      3px 3px 0 var(--logo-outline), -3px -3px 0 var(--logo-outline), 3px -3px 0 var(--logo-outline), -3px 3px 0 var(--logo-outline),
+      0 8px 20px rgba(20,10,60,.4); }
+  .logo img { width: 78px; height: 78px; filter: drop-shadow(0 8px 20px rgba(0,0,0,.35)); }
+</style>
+</head>
+<body>
+  <div class="shot"><img src="/stills/library-full.png" alt=""></div>
+  <div class="fade"></div>
+  <div class="badge">自制工具 · 推活日历</div>
+  <h1>再也不错过<br><em>推的生日</em></h1>
+  <div class="sub">搜名字 → 自动拿生日 → 提前提醒</div>
+  <div class="logo"><img src="/icon.svg" alt="">推日 · 角色创作日历</div>
+  <script>
+    const theme = new URLSearchParams(location.search).get("theme");
+    if (theme) document.documentElement.dataset.theme = theme;
+  </script>
+</body>
+</html>

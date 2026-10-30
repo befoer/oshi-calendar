@@ -79,7 +79,7 @@ export function loadConfig(): AIConfig {
     key: raw.remember
       ? raw.key || ""
       : sessionStorage.getItem("huiqi-ai-key") || "",
-    remember: !!raw.remember,
+    remember: true,
     mode: raw.mode === "json" ? "json" : "tools",
     reasoningEffort: ["low", "medium", "high"].includes(raw.reasoningEffort)
       ? raw.reasoningEffort
@@ -89,13 +89,11 @@ export function loadConfig(): AIConfig {
 export function saveConfig(config: AIConfig) {
   const normalized = {
     ...config,
+    remember: true,
     model: config.model.trim(),
     models: selectedModels(config),
   };
-  localStorage.setItem(
-    configKey,
-    JSON.stringify({ ...normalized, key: config.remember ? config.key : "" }),
-  );
+  localStorage.setItem(configKey, JSON.stringify(normalized));
   sessionStorage.setItem("huiqi-ai-key", config.key);
   window.dispatchEvent(new Event("huiqi-ai-config-changed"));
 }
@@ -205,7 +203,8 @@ export async function upstreamMessage(
   let message = "";
   try {
     const body = JSON.parse(text);
-    const found = body?.error?.message ?? body?.error ?? body?.message ?? body?.detail;
+    const found =
+      body?.error?.message ?? body?.error ?? body?.message ?? body?.detail;
     message =
       typeof found === "string"
         ? found
@@ -235,7 +234,10 @@ export async function diagnoseAI(
   const modelsResult = async (response: Response) => {
     if (!response.ok) {
       const detail = await upstreamMessage(response, [config.key]);
-      return { ok: false, detail: `HTTP ${response.status}${detail ? `：${detail}` : ""}` };
+      return {
+        ok: false,
+        detail: `HTTP ${response.status}${detail ? `：${detail}` : ""}`,
+      };
     }
     try {
       return {
@@ -250,17 +252,28 @@ export async function diagnoseAI(
   try {
     url = new URL(config.endpoint.trim().replace(/\/+$/, "") + "/models").href;
   } catch {
-    return [{ label: "接口地址", ok: false, detail: "地址无效，请填写形如 https://api.openai.com/v1 的基础地址" }];
+    return [
+      {
+        label: "接口地址",
+        ok: false,
+        detail: "地址无效，请填写形如 https://api.openai.com/v1 的基础地址",
+      },
+    ];
   }
   if (!config.key.trim())
     return [{ label: "API Key", ok: false, detail: "还没有填写 API Key" }];
-  const headers = { Accept: "application/json", Authorization: `Bearer ${config.key}` };
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${config.key}`,
+  };
   const timeout = () =>
     AbortSignal.any([AbortSignal.timeout(15000), ...(signal ? [signal] : [])]);
   // 1) 浏览器直连
   let directOk = false;
   try {
-    const result = await modelsResult(await fetch(url, { headers, signal: timeout() }));
+    const result = await modelsResult(
+      await fetch(url, { headers, signal: timeout() }),
+    );
     directOk = result.ok;
     steps.push({ label: "浏览器直连 GET /models", ...result });
   } catch (error) {
@@ -275,17 +288,26 @@ export async function diagnoseAI(
   }
   // 2) 本机服务转发
   if (directOk)
-    steps.push({ label: "本机服务转发 GET /models", ok: true, detail: "直连已经可用，无需转发" });
+    steps.push({
+      label: "本机服务转发 GET /models",
+      ok: true,
+      detail: "直连已经可用，无需转发",
+    });
   else if (!localCharacterService())
     steps.push({
       label: "本机服务转发 GET /models",
       ok: false,
-      detail: "当前不是通过本机服务打开的（纯静态部署），无法转发；请用 start.cmd／推日.exe 打开",
+      detail:
+        "当前不是通过本机服务打开的（纯静态部署），无法转发；请用 start.cmd／推日.exe 打开",
     });
   else
     try {
       const result = await modelsResult(
-        await viaRelay(url, { method: "GET", headers, signal: timeout() }, false),
+        await viaRelay(
+          url,
+          { method: "GET", headers, signal: timeout() },
+          false,
+        ),
       );
       steps.push({ label: "本机服务转发 GET /models", ...result });
     } catch (error) {
@@ -300,7 +322,11 @@ export async function diagnoseAI(
     }
   // 3) 一次最小对话
   if (!config.model.trim())
-    steps.push({ label: "对话测试 POST /chat/completions", ok: false, detail: "还没有填写模型，已跳过" });
+    steps.push({
+      label: "对话测试 POST /chat/completions",
+      ok: false,
+      detail: "还没有填写模型，已跳过",
+    });
   else
     try {
       const message = await completion(
@@ -309,14 +335,22 @@ export async function diagnoseAI(
         undefined,
         signal,
       );
-      const text = String(message.content ?? "").replace(/\s+/g, " ").trim();
+      const text = String(message.content ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
       steps.push({
         label: "对话测试 POST /chat/completions",
         ok: true,
-        detail: text ? `收到回复：${text.slice(0, 40)}` : "接口可用，但回复内容为空",
+        detail: text
+          ? `收到回复：${text.slice(0, 40)}`
+          : "接口可用，但回复内容为空",
       });
     } catch (error) {
-      steps.push({ label: "对话测试 POST /chat/completions", ok: false, detail: reason(error) });
+      steps.push({
+        label: "对话测试 POST /chat/completions",
+        ok: false,
+        detail: reason(error),
+      });
     }
   return steps;
 }
@@ -332,8 +366,7 @@ export function parseModelList(body: unknown): string[] {
     field(body, "models"),
     field(field(body, "data"), "models"),
   ].find(Array.isArray) as unknown[] | undefined;
-  if (!rows)
-    throw new Error("上游模型列表格式无效，需要 data 中包含模型 id");
+  if (!rows) throw new Error("上游模型列表格式无效，需要 data 中包含模型 id");
   if (!rows.length)
     throw new Error("上游返回了空模型列表，请检查密钥权限或手动填写模型名称");
   const ids = rows
@@ -992,7 +1025,10 @@ export const tools = [
  * 模型最后一轮没给文字（空串、只有空白）时，不能留一个空气泡：
  * 有已保存的修改就列出来，否则提示重试。
  */
-export function finalReply(content: unknown, logs: Pick<Log, "summary" | "changes">[]) {
+export function finalReply(
+  content: unknown,
+  logs: Pick<Log, "summary" | "changes">[],
+) {
   const text = typeof content === "string" ? content.trim() : "";
   if (text) return text;
   if (!logs.length) return "模型没有返回文字回复，请重试或换一个模型。";
@@ -1959,6 +1995,11 @@ const cleanNote = (s: string) =>
     .replace(/^["“「『]+|["”」』]+$/g, "")
     .trim();
 
+export const validBirthdayNote = (text: string) =>
+  !!text.trim() &&
+  !/placeholder|^\s*(?:messages?|replies)\s*[:：]?\s*$/i.test(text) &&
+  !/^[\s`]*[\[{]/.test(text);
+
 /** 把模型的回复拆成若干条留言：优先按 JSON 字符串数组解析，不行就按行拆（去掉序号和项目符号）。 */
 export function parseNoteList(content: string): string[] {
   const raw = content.trim();
@@ -1966,19 +2007,22 @@ export function parseNoteList(content: string): string[] {
   try {
     const parsed = parseJSON(raw);
     if (Array.isArray(parsed)) list = parsed;
-    else if (parsed && Array.isArray((parsed as { messages?: unknown }).messages))
-      list = (parsed as { messages: unknown[] }).messages;
+    else if (parsed && typeof parsed === "object")
+      list = Array.isArray(parsed.messages) ? parsed.messages : [];
   } catch {
     /* 不是 JSON，按行拆 */
   }
   const lines =
     list ??
-    raw.split(/\r?\n/).map((line) => line.replace(/^\s*(?:[-*•]|\d+[.、)）])\s*/, ""));
+    raw
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.、)）])\s*/, ""));
   const seen = new Set<string>();
   return lines
     .map((line) => cleanNote(typeof line === "string" ? line : ""))
     .filter((text) => {
-      if (!text || text.length > 200 || seen.has(text)) return false;
+      if (!validBirthdayNote(text) || text.length > 200 || seen.has(text))
+        return false;
       seen.add(text);
       return true;
     });

@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 const workspace = resolve(fileURLToPath(new URL("..", import.meta.url)));
 process.chdir(workspace);
-const port = Number(process.env.HUIQI_PORT || 4173),
+const port = Number(process.env.HUIQI_PORT || 36524),
   url = `http://127.0.0.1:${port}`;
 const npm = (args) => {
   const r = spawnSync("cmd.exe", ["/d", "/s", "/c", `npm ${args}`], {

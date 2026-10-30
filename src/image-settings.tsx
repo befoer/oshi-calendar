@@ -137,14 +137,7 @@ export function ImageSettings({ notify }: { notify: (s: string) => void }) {
           autoComplete="off"
         />
       </label>
-      <label className="check-label">
-        <input
-          type="checkbox"
-          checked={config.remember}
-          onChange={(e) => set({ remember: e.target.checked })}
-        />
-        记住密钥（仅保存在本机浏览器，不进备份）
-      </label>
+      <p className="muted">密钥默认保存在本机浏览器，不进入备份。</p>
       <label>
         生图模型
         <ModelCombobox
@@ -185,7 +178,9 @@ export function ImageSettings({ notify }: { notify: (s: string) => void }) {
         </label>
       )}
       <p className="muted">
-        比例会换成接口常用的尺寸：1:1 → 1024x1024，3:4 → 1024x1536，4:3 → 1536x1024（gpt-image 只支持这三种）。自定义接口的模板里可以用 {"{{size}}"} 和 {"{{ratio}}"}。
+        比例会换成接口常用的尺寸：1:1 → 1024x1024，3:4 → 1024x1536，4:3 →
+        1536x1024（gpt-image 只支持这三种）。自定义接口的模板里可以用{" "}
+        {"{{size}}"} 和 {"{{ratio}}"}。
       </p>
       <label>
         提示词语法
@@ -202,7 +197,8 @@ export function ImageSettings({ notify }: { notify: (s: string) => void }) {
         </select>
       </label>
       <p className="muted">
-        预置提示词，以及聊天中让角色「拍照」时由 AI 写的画面描述，都会按这个语法来。
+        预置提示词，以及聊天中让角色「拍照」时由 AI
+        写的画面描述，都会按这个语法来。
       </p>
       <label>
         提示词前缀（固定加在最前面，可留空）

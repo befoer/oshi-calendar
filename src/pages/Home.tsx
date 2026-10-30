@@ -56,6 +56,7 @@ import {
 import { IdeaCard } from "./Ideas";
 import { useBirthdayNote } from "../birthday-note";
 import { heroNarration } from "../hero-copy";
+import { BirthdayRanking } from "./BirthdayRanking";
 
 /** 旁白里的「N 天后／明天／后天」用粉色标出来。 */
 const highlight = (text: string) =>
@@ -72,6 +73,14 @@ const highlight = (text: string) =>
     );
 
 const ROWS_KEY = "huiqi-home-birthday-rows";
+const ORDER_KEY = "oshi-home-birthday-ranking-first";
+const readRankingFirst = () => {
+  try {
+    return localStorage.getItem(ORDER_KEY) !== "false";
+  } catch {
+    return true;
+  }
+};
 const readRows = () => {
   try {
     const n = Number(localStorage.getItem(ROWS_KEY));
@@ -131,6 +140,7 @@ export function Home({
   onUpdateSettings: (patch: Partial<Data["settings"]>) => void;
 }) {
   const [rows, setRows] = useState(readRows);
+  const [rankingFirst, setRankingFirst] = useState(readRankingFirst);
   const [copied, setCopied] = useState("");
   const [onlyStarred, setOnlyStarred] = useState(false);
   const [holidayFilter, setHolidayFilter] = useState("all");
@@ -237,6 +247,15 @@ export function Home({
       setTimeout(() => setCopied(""), 1800);
     }
   };
+  const moveRanking = () => {
+    setRankingFirst(!rankingFirst);
+    try {
+      localStorage.setItem(ORDER_KEY, String(!rankingFirst));
+    } catch { /* Session-only preference. */ }
+  };
+  const ranking = (
+    <BirthdayRanking key="birthday-ranking" columns={cols} first={rankingFirst} onMove={moveRanking} />
+  );
   return (
     <>
       <section className="hero">
@@ -414,7 +433,8 @@ export function Home({
           </button>
         </div>
       </section>
-      <section className="birthday-section">
+      {rankingFirst && ranking}
+      <section className="birthday-section" key="recent-birthdays">
         <div className="section-heading">
           <h2>
             <Cake size={18} />
@@ -540,6 +560,7 @@ export function Home({
           )}
         </div>
       </section>
+      {!rankingFirst && ranking}
       <div className="home-grid">
         <div className="home-main">
         <section className="panel task-glance">

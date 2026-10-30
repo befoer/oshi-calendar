@@ -32,6 +32,8 @@ import {
 } from "./domain";
 import { today, localDate, daysUntil, type Occurrence } from "./calendar";
 import { avatarFallbackURL } from "./external-network";
+import { bangumiImageGatewayURL } from "./bangumi-gateway";
+import { useBangumiConnection } from "./bangumi-connection";
 
 /* ---------- 导航与文案 ---------- */
 export type Page =
@@ -291,16 +293,21 @@ export function Avatar({
   character,
   size = "normal",
 }: {
-  character: Character;
+  character: Pick<Character, "name" | "avatarUrl"> &
+    Partial<Pick<Character, "avatarX" | "avatarY" | "avatarZoom">>;
   size?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  const [useFallback, setUseFallback] = useState(false);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const connection = useBangumiConnection();
   useEffect(() => {
-    setFailed(false);
-    setUseFallback(false);
-  }, [character.avatarUrl]);
+    setSourceIndex(0);
+  }, [character.avatarUrl, connection]);
   const fallback = avatarFallbackURL(character.avatarUrl);
+  const gateway = bangumiImageGatewayURL(character.avatarUrl);
+  const sources = gateway
+    ? [gateway, ...(fallback ? [fallback] : []), character.avatarUrl]
+    : [character.avatarUrl, ...(fallback ? [fallback] : [])];
+  const source = sources[sourceIndex];
   return (
     <div
       className={`avatar ${size}`}
@@ -313,15 +320,14 @@ export function Avatar({
         } as CSSProperties
       }
     >
-      {character.avatarUrl && !failed ? (
+      {character.avatarUrl && source ? (
         <img
-          src={useFallback && fallback ? fallback : character.avatarUrl}
+          src={source}
+          crossOrigin={source === gateway ? "anonymous" : undefined}
           alt={character.name}
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() =>
-            fallback && !useFallback ? setUseFallback(true) : setFailed(true)
-          }
+          onError={() => setSourceIndex((index) => index + 1)}
         />
       ) : (
         <span>{character.name.slice(0, 1)}</span>

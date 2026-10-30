@@ -51,14 +51,19 @@ async function queryAniList(
   query: string,
   variables: Record<string, unknown>,
   quiet = false,
+  signal?: AbortSignal,
 ) {
   const response = await externalJSON(
     "AniList",
     "https://graphql.anilist.co",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify({ query, variables }),
+      signal,
     },
     { quiet },
   );
@@ -114,6 +119,43 @@ export async function fetchAniListCharacter(id: number, quiet = false) {
   if (result.id !== id) throw new Error("AniList 返回的角色 ID 不匹配");
   return result;
 }
+/** AniList's birthday filter uses the provider's current date; callers must verify it. */
+export async function fetchAniListBirthdayRanking(
+  page: number,
+  signal?: AbortSignal,
+) {
+  const data = await queryAniList(
+    `query($birthday: Boolean!, $page: Int!) { Page(page: $page, perPage: 50) { pageInfo { hasNextPage } characters(isBirthday: $birthday, sort: FAVOURITES_DESC) { ${characterFields} favourites gender } } }`,
+    { birthday: true, page },
+    true,
+    signal,
+  );
+  const result = z.object({
+    pageInfo: z.object({ hasNextPage: z.boolean() }),
+    characters: z.array(
+      aniSchema.extend({
+        favourites: z.number().int().nonnegative(),
+        gender: z.string().nullable(),
+      }),
+    ),
+  }).parse(data.Page);
+  return {
+    hasNextPage: result.pageInfo.hasNextPage,
+    entries: result.characters.map((c) => ({
+      id: c.id,
+      name: c.name.native || c.name.full || `AniList ${c.id}`,
+      avatarUrl: c.image?.large || c.image?.medium || "",
+      work:
+        c.media?.nodes
+          ?.map((m) => m?.title.native || m?.title.english || m?.title.romaji)
+          .find(Boolean) || "",
+      favourites: c.favourites,
+      gender: c.gender,
+      month: c.dateOfBirth?.month ?? 0,
+      day: c.dateOfBirth?.day ?? 0,
+    })),
+  };
+}
 export async function searchAniList(
   query: string,
   character?: Character,
@@ -134,19 +176,67 @@ export async function searchAniListLookup(
 async function searchAniListName(
   name: string,
   quiet = false,
+  signal?: AbortSignal,
 ): Promise<BangumiCharacter[]> {
   const data = await queryAniList(
     `query($search: String!) { Page(perPage: 10) { characters(search: $search) { ${characterFields} } } }`,
     { search: name },
     quiet,
+    signal,
   );
   return z
     .array(z.unknown())
     .parse(data.Page?.characters)
     .map(normalizeAniList);
 }
+
+/** Portrait lookup starts only after a Bangumi result is opened; metadata stays Bangumi. */
+export async function searchAniListPortraits(
+  character: BangumiCharacter,
+  signal?: AbortSignal,
+): Promise<BangumiCharacter[]> {
+  const aliases = character.infobox?.find(
+    (field) => field.key === "别名",
+  )?.value;
+  const names = [
+    character.name,
+    ...(Array.isArray(aliases) ? aliases.map((alias) => alias.v) : []),
+    ...(character.infobox ?? []).flatMap((field) =>
+      /中文名|英文|罗马|羅馬|roman|english/i.test(field.key) &&
+      typeof field.value === "string"
+        ? [field.value]
+        : [],
+    ),
+  ].map(normalize);
+  const queries = [
+    ...new Set(
+      [character.name, bangumiEnglishName(character)].filter(
+        (name): name is string => !!name?.trim(),
+      ),
+    ),
+  ];
+  for (const query of queries) {
+    signal?.throwIfAborted();
+    const candidates = await searchAniListName(query, true, signal);
+    const matched = candidates.filter((candidate) => {
+      const aliases = candidate.infobox?.find(
+        (field) => field.key === "别名",
+      )?.value;
+      return (
+        !!candidate.images?.medium &&
+        [
+          candidate.name,
+          ...(Array.isArray(aliases) ? aliases.map((alias) => alias.v) : []),
+        ].some((name) => names.includes(normalize(name)))
+      );
+    });
+    if (matched.length) return matched.slice(0, 1);
+  }
+  return [];
+}
 const sameName = (a: string, b: string) =>
-  a.normalize("NFKC").replace(/s+/g, "") === b.normalize("NFKC").replace(/s+/g, "");
+  a.normalize("NFKC").replace(/s+/g, "") ===
+  b.normalize("NFKC").replace(/s+/g, "");
 /**
  * 用日文原名在 AniList 上查英文名（AniList 能按日文名搜到角色，如 コロンビア → Columbia）。
  * 只接受原名完全一致的结果，查不到或失败都返回 null，不弹网络提示。
@@ -162,7 +252,10 @@ export async function anilistEnglishName(
       "https://graphql.anilist.co",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
           query: `query($search: String!) { Page(perPage: 10) { characters(search: $search) { id name { full native } } } }`,
           variables: { search: native.trim() },
@@ -224,7 +317,10 @@ export async function resolveAniListName(
   // 直接输入的英文名就是 AniList 要的，不必先绕 Bangumi（否则 Bangumi 重名会把搜索整个拦住）。
   // 已有 Bangumi 关联的角色（自动补生日）仍按 Bangumi 核对身份，不走这里。
   if (!character?.bangumiId && isEnglishName(query.trim()))
-    return { name: query.trim(), bangumi: undefined as BangumiCharacter | undefined };
+    return {
+      name: query.trim(),
+      bangumi: undefined as BangumiCharacter | undefined,
+    };
   let bangumi = remote?.provider !== "anilist" ? remote : undefined;
   let failure: unknown;
   if (!bangumi) {
@@ -323,7 +419,8 @@ export async function findAniListFallback(
   bangumi?: BangumiCharacter,
 ) {
   // 后台补资料用的备用来源：AniList 出问题时不弹窗打扰（Bangumi 本身失败仍会提示）
-  if (character.anilistId) return fetchAniListCharacter(character.anilistId, true);
+  if (character.anilistId)
+    return fetchAniListCharacter(character.anilistId, true);
   const lookup = character.bangumiId
     ? knownLookups.get(character.bangumiId)
     : undefined;

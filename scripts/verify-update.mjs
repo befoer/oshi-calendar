@@ -22,7 +22,7 @@ try {
   let page = await context.newPage();
   await page.route("https://api.bgm.tv/**", (route) => route.abort());
   await page.route("https://graphql.anilist.co/**", (route) => route.abort());
-  await page.goto("http://127.0.0.1:4173");
+  await page.goto("http://127.0.0.1:36524");
   await page
     .getByRole("heading", { name: "把下一次创作，安排在好日子。" })
     .waitFor();
@@ -58,7 +58,7 @@ try {
   });
   await page.close();
   page = await context.newPage();
-  await page.goto("http://127.0.0.1:4173/__verify_harness.html");
+  await page.goto("http://127.0.0.1:36524/__verify_harness.html");
   await page.evaluate(() =>
     navigator.serviceWorker.register("/__verify_legacy_sw.js"),
   );
@@ -73,7 +73,7 @@ try {
     .waitFor();
   const { buildId } = JSON.parse(await readFile("dist/build.json", "utf8"));
   await page.goto(
-    `http://127.0.0.1:4173/?__huiqi_launch=${encodeURIComponent(buildId)}`,
+    `http://127.0.0.1:36524/?__huiqi_launch=${encodeURIComponent(buildId)}`,
   );
   await page
     .getByRole("heading", { name: "把下一次创作，安排在好日子。" })

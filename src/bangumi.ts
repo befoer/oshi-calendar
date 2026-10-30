@@ -2,6 +2,11 @@ import { characterSchema, type Character, type Operation } from "./domain";
 import { db, repository } from "./store";
 import { externalJSON } from "./external-network";
 import { findAniListFallback, searchAniList } from "./anilist";
+import { BANGUMI_GATEWAY_URL } from "./bangumi-gateway";
+import {
+  getBangumiConnection,
+  subscribeBangumiConnection,
+} from "./bangumi-connection";
 export type BangumiCharacter = {
   id: number;
   provider?: "anilist";
@@ -13,9 +18,80 @@ export type BangumiCharacter = {
   summary?: string;
   works?: string[];
 };
+
 const api = async (path: string, init?: RequestInit) => {
   return externalJSON("Bangumi", "https://api.bgm.tv/v0" + path, init);
 };
+
+class BangumiGatewayError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function gatewayJSON<T>(
+  path: string,
+  params: Record<string, string>,
+): Promise<T> {
+  const url = new URL(BANGUMI_GATEWAY_URL + path);
+  for (const [key, value] of Object.entries(params))
+    url.searchParams.set(key, value);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  const unsubscribe = subscribeBangumiConnection(() => controller.abort());
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok)
+      throw new BangumiGatewayError(
+        response.status,
+        response.status === 429
+          ? "Bangumi 请求过于频繁，请稍后重试"
+          : `Bangumi 网关请求失败（HTTP ${response.status}）`,
+      );
+    return (await response.json()) as T;
+  } finally {
+    clearTimeout(timer);
+    unsubscribe();
+  }
+}
+
+async function searchBangumiGateway(
+  query: string,
+): Promise<BangumiCharacter[]> {
+  const payload = await gatewayJSON<{ data?: BangumiCharacter[] }>(
+    "/v1/search",
+    {
+      query,
+      kind: "character",
+    },
+  );
+  if (!Array.isArray(payload.data))
+    throw new Error("Bangumi 网关尚未提供完整角色搜索资料");
+  return payload.data;
+}
+
+async function fetchBangumiCharacterGateway(
+  id: number,
+): Promise<BangumiCharacter> {
+  const character = await gatewayJSON<BangumiCharacter>(
+    `/v1/characters/${id}`,
+    {},
+  );
+  if (!character || character.id !== id)
+    throw new Error("Bangumi 网关返回的角色 ID 不匹配");
+  return character;
+}
+
+async function fetchBangumiWorksGateway(id: number): Promise<unknown> {
+  return gatewayJSON(`/v1/characters/${id}/subjects`, {});
+}
+
 export const characterSourceURL = (c: BangumiCharacter) =>
   c.provider === "anilist"
     ? `https://anilist.co/character/${c.id}`
@@ -25,6 +101,16 @@ export async function searchBangumi(
 ): Promise<BangumiCharacter[]> {
   const id = query.match(/(?:character\/|^)(\d+)(?:[/?#].*)?$/)?.[1];
   if (id) return [await detailBangumi(Number(id))];
+  if (getBangumiConnection() === "gateway")
+    try {
+      return await searchBangumiGateway(query);
+    } catch (error) {
+      if (getBangumiConnection() === "direct") throw error;
+      if (error instanceof BangumiGatewayError && error.status === 429)
+        throw error;
+      // The local service remains the fallback for older deployments or a
+      // temporarily unavailable gateway.
+    }
   const result = await api("/search/characters?limit=10", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -38,7 +124,18 @@ export async function fetchBangumiWorks(id: number): Promise<string[]> {
   const cached = worksCache.get(id);
   if (cached) return cached;
   try {
-    const subjects = await api(`/characters/${id}/subjects`);
+    let subjects: unknown;
+    if (getBangumiConnection() === "direct") {
+      subjects = await api(`/characters/${id}/subjects`);
+    } else
+      try {
+        subjects = await fetchBangumiWorksGateway(id);
+      } catch (error) {
+        if (getBangumiConnection() === "direct") throw error;
+        if (error instanceof BangumiGatewayError && error.status === 429)
+          throw error;
+        subjects = await api(`/characters/${id}/subjects`);
+      }
     const works = [
       ...new Set((subjects as any[]).map((s) => s.name_cn || s.name)),
     ].slice(0, 6);
@@ -60,7 +157,18 @@ export async function detailBangumi(id: number): Promise<BangumiCharacter> {
 export async function fetchBangumiCharacter(
   id: number,
 ): Promise<BangumiCharacter> {
-  const c = await api(`/characters/${id}`);
+  let c: BangumiCharacter;
+  if (getBangumiConnection() === "direct") {
+    c = await api(`/characters/${id}`);
+  } else
+    try {
+      c = await fetchBangumiCharacterGateway(id);
+    } catch (error) {
+      if (getBangumiConnection() === "direct") throw error;
+      if (error instanceof BangumiGatewayError && error.status === 429)
+        throw error;
+      c = await api(`/characters/${id}`);
+    }
   if (c.id !== id) throw new Error("Bangumi 返回的角色 ID 不匹配");
   return c;
 }

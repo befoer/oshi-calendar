@@ -18,7 +18,7 @@ const webTools = import("./web-tools.mjs");
 let webVersion = null;
 webTools.then((m) => (webVersion = m.webVersion)).catch(() => {});
 const root = resolve(process.env.HUIQI_ROOT || "dist");
-const port = Number(process.env.HUIQI_PORT || 4173);
+const port = Number(process.env.HUIQI_PORT || 36524);
 const mime = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",

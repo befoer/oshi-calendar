@@ -3,6 +3,7 @@ import {
   aiConfigured,
   generateBirthdayPack,
   loadConfig,
+  validBirthdayNote,
   type NoteKind,
 } from "./ai";
 import { daysToBirthday } from "./character-sort";
@@ -65,7 +66,9 @@ export function pickNote(
   exclude?: string,
   random = Math.random,
 ): Item | undefined {
-  const items = pool?.[kind] ?? [];
+  const items = (pool?.[kind] ?? []).filter((item) =>
+    validBirthdayNote(item.t),
+  );
   const others = items.filter((item) => item.t !== exclude);
   const list = others.length ? others : items;
   if (!list.length) return undefined;
@@ -75,7 +78,9 @@ export function pickNote(
 }
 
 export const unseenCount = (pool: Pool | undefined, kind: NoteKind) =>
-  (pool?.[kind] ?? []).filter((item) => item.n === 0).length;
+  (pool?.[kind] ?? []).filter(
+    (item) => item.n === 0 && validBirthdayNote(item.t),
+  ).length;
 
 /** 把新写好的留言并进去：去重，超过上限时丢掉看得最多的；角色改名后旧留言作废。 */
 export function addToPool(
@@ -89,8 +94,10 @@ export function addToPool(
     pool && pool.name === name ? pool : { name, today: [], soon: [], at: now };
   const have = new Set(base[kind].map((item) => item.t));
   const merged = [
-    ...base[kind],
-    ...texts.filter((t) => !have.has(t)).map((t) => ({ t, n: 0 })),
+    ...base[kind].filter((item) => validBirthdayNote(item.t)),
+    ...texts
+      .filter((t) => validBirthdayNote(t) && !have.has(t))
+      .map((t) => ({ t, n: 0 })),
   ];
   // 先丢看得最多的；一样多时先丢更早存进来的
   const order = new Map(merged.map((item, i) => [item, i]));
@@ -152,7 +159,9 @@ export function fillNotes(c: Who, kind: NoteKind): Promise<void> {
   if (running) return running;
   const config = loadConfig();
   if (!aiConfigured(config))
-    return Promise.reject(new Error("请先在设置中填写 AI 接口地址、模型和密钥"));
+    return Promise.reject(
+      new Error("请先在设置中填写 AI 接口地址、模型和密钥"),
+    );
   if (!navigator.onLine)
     return Promise.reject(new Error("当前离线，联网后可重新生成"));
   const existing = (poolOf(c)?.[kind] ?? []).map((item) => item.t);
@@ -170,12 +179,13 @@ export function fillNotes(c: Who, kind: NoteKind): Promise<void> {
       const store = readStore();
       const pool = addToPool(store[c.id], c.name, kind, messages);
       if (replies.length)
-        pool.replies = [...new Set([...(pool.replies ?? []), ...replies])].slice(
-          -MAX_REPLIES,
-        );
+        pool.replies = [
+          ...new Set([...(pool.replies ?? []), ...replies]),
+        ].slice(-MAX_REPLIES);
       store[c.id] = pool;
       writeStore(store);
       failedAt.delete(key);
+      window.dispatchEvent(new Event("huiqi-birthday-notes-changed"));
     })
     .catch((error) => {
       failedAt.set(key, Date.now());
@@ -255,7 +265,10 @@ export function useBirthdayNote(
   const [note, setNote] = useState<BirthdayNote>(() => {
     if (!character) return { status: "loading" };
     const key = `${character.id}:${kind}`;
-    const text = picked.get(key) ?? takeNote(character, kind);
+    const cached = picked.get(key);
+    const text =
+      (cached && validBirthdayNote(cached) ? cached : undefined) ??
+      takeNote(character, kind);
     if (!text) return { status: "loading" };
     picked.set(key, text);
     return { status: "ok", text };
@@ -266,7 +279,8 @@ export function useBirthdayNote(
       const id = ++seq.current;
       if (!character) return;
       const key = `${character.id}:${kind}`;
-      const current = picked.get(key);
+      const cached = picked.get(key);
+      const current = cached && validBirthdayNote(cached) ? cached : undefined;
       let text = next ? undefined : current;
       text ??= takeNote(character, kind, current) ?? undefined;
       if (text) {
@@ -309,11 +323,17 @@ export function useBirthdayNote(
   useEffect(() => {
     void run(false);
     const reload = () => void run(false);
+    const receiveNotes = () => {
+      const current = character && picked.get(`${character.id}:${kind}`);
+      if (!current || !validBirthdayNote(current)) void run(false);
+    };
     window.addEventListener("huiqi-ai-config-changed", reload);
+    window.addEventListener("huiqi-birthday-notes-changed", receiveNotes);
     return () => {
       seq.current++;
       window.removeEventListener("huiqi-ai-config-changed", reload);
+      window.removeEventListener("huiqi-birthday-notes-changed", receiveNotes);
     };
-  }, [run]);
+  }, [run, character?.id, kind]);
   return { note, refresh: () => void run(true) };
 }
