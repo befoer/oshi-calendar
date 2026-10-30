@@ -6,7 +6,11 @@ import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { checkForUpdate, RELEASES_PAGE } from "./updates.mjs";
+import {
+  checkForUpdate,
+  createUpdateChecker,
+  RELEASES_PAGE,
+} from "./updates.mjs";
 import { fileURLToPath } from "node:url";
 import electronUpdater from "electron-updater";
 import { createInstalledUpdates } from "./installed-updates.mjs";
@@ -113,20 +117,38 @@ function createWindow() {
 
 // ---------- 在线更新 ----------
 // 用 Electron 自己的网络（跟随系统代理）访问 GitHub
+let updateChecker;
 const updates = installed
   ? createInstalledUpdates(
       electronUpdater.autoUpdater,
       app.getVersion(),
       (state) => {
+        if (state.status === "error") updateChecker?.clear();
         if (main && !main.isDestroyed())
           main.webContents.send("desktop:update-state", state);
       },
     )
   : null;
-const checkUpdate = () =>
-  updates
-    ? updates.check()
-    : checkForUpdate(app.getVersion(), (url, init) => net.fetch(url, init));
+const updateCacheFile = () =>
+  join(app.getPath("userData"), "update-check-cache.json");
+updateChecker = createUpdateChecker(
+  () =>
+    updates
+      ? updates.check()
+      : checkForUpdate(app.getVersion(), (url, init) => net.fetch(url, init)),
+  {
+    current: app.getVersion(),
+    cacheAvailable: !installed,
+    readCache: async () =>
+      JSON.parse(await readFile(updateCacheFile(), "utf8")),
+    writeCache: async (cache) =>
+      writeFile(updateCacheFile(), JSON.stringify(cache)),
+  },
+);
+const checkUpdate = (options) =>
+  updates && ["downloading", "ready"].includes(updates.snapshot().status)
+    ? Promise.resolve(updates.snapshot())
+    : updateChecker.check(options);
 const settingsFile = () =>
   join(app.getPath("userData"), "desktop-settings.json");
 async function readSettings() {
@@ -172,7 +194,7 @@ ipcMain.handle("desktop:open-download", (_event, url) => {
 
 /** 启动后在后台检查一次；有新版弹窗提示，可选择跳过这个版本。 */
 async function remindUpdate() {
-  const result = await checkUpdate();
+  const result = await checkUpdate({ automatic: true });
   if (result.status !== "available" || !main) return;
   const settings = await readSettings();
   if (settings.skipVersion === result.latest) return;
