@@ -49,3 +49,5 @@ jobs:
           files: |
             release/*.zip
             release/*.exe
+            release/*.blockmap
+            release/latest.yml

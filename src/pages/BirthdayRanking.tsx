@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   Cake,
+  Check,
   ChevronUp,
   Loader2,
   Plus,
@@ -16,6 +17,8 @@ import {
   type BirthdayGender,
   type BirthdayRankingEntry,
 } from "../birthday-ranking";
+import type { Character } from "../domain";
+import { addRankingCharacter, rankingCharacter } from "../ranking-library";
 
 type State =
   | { status: "loading" }
@@ -36,11 +39,26 @@ export function BirthdayRanking({
   columns,
   first,
   onMove,
+  characters,
 }: {
   columns: number;
   first: boolean;
   onMove: () => void;
+  characters: Character[];
 }) {
+  const [adding, setAdding] = useState<number[]>([]);
+  const [addError, setAddError] = useState("");
+  const add = async (entry: BirthdayRankingEntry) => {
+    setAdding((ids) => [...ids, entry.id]);
+    setAddError("");
+    try {
+      await addRankingCharacter(entry);
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : "添加失败，请重试");
+    } finally {
+      setAdding((ids) => ids.filter((id) => id !== entry.id));
+    }
+  };
   const [date, setDate] = useState(today);
   const [gender, setGender] = useState(readGender);
   const [visible, setVisible] = useState(5);
@@ -145,6 +163,11 @@ export function BirthdayRanking({
         人气排序
       </p>
       <div aria-live="polite">
+        {addError && (
+          <p role="alert" className="ranking-message">
+            {addError}
+          </p>
+        )}
         {state.status === "loading" && (
           <p className="ranking-message" role="status">
             <Loader2 size={16} className="spin" />
@@ -170,26 +193,52 @@ export function BirthdayRanking({
                   gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
                 }}
               >
-                {shown.map((entry, index) => (
+                {shown.map((entry) => (
                   <li key={entry.id}>
-                    <a
-                      className="ranking-card"
-                      href={`https://anilist.co/character/${entry.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`第 ${index + 1} 名 ${entry.name}，在 AniList 查看`}
-                    >
-                      <div className="ranking-portrait">
-                        <Avatar character={entry} size="portrait" />
-                        <span className="ranking-position">{index + 1}</span>
-                      </div>
-                      <div className="ranking-card-body">
-                        <strong title={entry.name}>{entry.name}</strong>
-                        <span className="ranking-work" title={entry.work}>
-                          {entry.work || "作品资料暂无"}
-                        </span>
-                      </div>
-                    </a>
+                    <article className="ranking-card">
+                      <a
+                        className="ranking-link"
+                        href={`https://anilist.co/character/${entry.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`${entry.name}，在 AniList 查看`}
+                      >
+                        <div className="ranking-portrait">
+                          <Avatar character={entry} size="portrait" />
+                        </div>
+                        <div className="ranking-card-body">
+                          <strong title={entry.name}>{entry.name}</strong>
+                          <span className="ranking-work" title={entry.work}>
+                            {entry.work || "作品资料暂无"}
+                          </span>
+                        </div>
+                      </a>
+                      <button
+                        className="ranking-add"
+                        title={
+                          rankingCharacter(entry, characters)
+                            ? "已在角色库"
+                            : "添加到角色库"
+                        }
+                        aria-label={`${rankingCharacter(entry, characters) ? "已在角色库" : "添加到角色库"}：${entry.name}`}
+                        disabled={
+                          adding.includes(entry.id) ||
+                          !!rankingCharacter(entry, characters)
+                        }
+                        onClick={() => void add(entry)}
+                      >
+                        {adding.includes(entry.id) ? (
+                          <Loader2 size={15} className="spin" />
+                        ) : rankingCharacter(entry, characters) ? (
+                          <Check size={15} />
+                        ) : (
+                          <Plus size={15} />
+                        )}
+                        {rankingCharacter(entry, characters)
+                          ? "已添加"
+                          : "添加到角色库"}
+                      </button>
+                    </article>
                   </li>
                 ))}
                 <li

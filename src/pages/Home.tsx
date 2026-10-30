@@ -254,7 +254,7 @@ export function Home({
     } catch { /* Session-only preference. */ }
   };
   const ranking = (
-    <BirthdayRanking key="birthday-ranking" columns={cols} first={rankingFirst} onMove={moveRanking} />
+    <BirthdayRanking key="birthday-ranking" columns={cols} first={rankingFirst} onMove={moveRanking} characters={data.characters} />
   );
   return (
     <>

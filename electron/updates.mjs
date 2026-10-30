@@ -16,16 +16,22 @@ export function compareVersions(a, b) {
       .slice(0, 3)
       .map((n) => Number.parseInt(n, 10) || 0);
   const [x, y] = [parse(a), parse(b)];
-  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  for (let i = 0; i < 3; i++)
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
   return 0;
 }
 
-/** 从 Release 里挑下载文件：文件夹版 zip 优先（启动快），其次便携版 exe，都没有就给 Release 页面。 */
+/** 旧分发方式的手动下载入口：优先安装版，旧 Release 兼容 ZIP 与便携 EXE。 */
 export function pickDownload(release) {
   const assets = Array.isArray(release?.assets) ? release.assets : [];
   const zip = assets.find((a) => /\.zip$/i.test(a.name));
+  const installer = assets.find((a) => /-setup\.exe$/i.test(a.name));
   const exe = assets.find((a) => /\.exe$/i.test(a.name));
-  return (zip ?? exe)?.browser_download_url || release?.html_url || RELEASES_PAGE;
+  return (
+    (installer ?? zip ?? exe)?.browser_download_url ||
+    release?.html_url ||
+    RELEASES_PAGE
+  );
 }
 
 /**
@@ -47,7 +53,11 @@ export async function checkForUpdate(current, fetchImpl = fetch) {
         message: "还没有发布过版本，或仓库暂未公开",
       };
     if (!response.ok)
-      return { status: "error", current, message: `GitHub 返回 HTTP ${response.status}` };
+      return {
+        status: "error",
+        current,
+        message: `GitHub 返回 HTTP ${response.status}`,
+      };
     const release = await response.json();
     if (release.draft || release.prerelease)
       return { status: "latest", current };

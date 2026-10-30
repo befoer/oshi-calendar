@@ -35,4 +35,7 @@ it("检查更新：有新版返回文件夹版 zip 下载地址；没新版、�
     }),
   ).toMatchObject({ status: "error", message: expect.stringContaining("无法连接 GitHub") });
   expect(pickDownload({ html_url: "https://github.com/p", assets: [] })).toBe("https://github.com/p");
+  expect(pickDownload({ ...release, assets: [...release.assets, {
+    name: "oshi-calendar-1.1.0-setup.exe", browser_download_url: "https://github.com/x/setup.exe",
+  }] })).toBe("https://github.com/x/setup.exe");
 });

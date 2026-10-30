@@ -1,12 +1,15 @@
 /**
- * 推日 Electron 便携版：在本进程里启动本机资料服务（固定 127.0.0.1:36524），
- * 用自带窗口打开它。数据（IndexedDB 等）放在 exe 旁边的「推日数据」文件夹，拷走整个文件夹就能带走。
+ * 桌面窗口与本机资料服务（127.0.0.1:36524）。安装版使用固定用户目录，
+ * 便携版和文件夹版沿用 exe 旁边的「推日数据」。
  */
 import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
 import { readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { checkForUpdate, RELEASES_PAGE } from "./updates.mjs";
 import { fileURLToPath } from "node:url";
+import electronUpdater from "electron-updater";
+import { createInstalledUpdates } from "./installed-updates.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const port = 36524;
@@ -18,7 +21,16 @@ const childOrigins = new Set([origin, "https://befoer.github.io"]);
 const dataRoot = app.isPackaged
   ? process.env.PORTABLE_EXECUTABLE_DIR || dirname(app.getPath("exe"))
   : join(here, "..");
-app.setPath("userData", join(dataRoot, app.isPackaged ? "推日数据" : ".electron-data"));
+const installed =
+  app.isPackaged &&
+  !process.env.PORTABLE_EXECUTABLE_DIR &&
+  existsSync(join(dirname(app.getPath("exe")), "Uninstall 推日.exe"));
+app.setPath(
+  "userData",
+  installed
+    ? join(app.getPath("appData"), "OshiCalendar")
+    : join(dataRoot, app.isPackaged ? "推日数据" : ".electron-data"),
+);
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -101,8 +113,22 @@ function createWindow() {
 
 // ---------- 在线更新 ----------
 // 用 Electron 自己的网络（跟随系统代理）访问 GitHub
-const checkUpdate = () => checkForUpdate(app.getVersion(), (url, init) => net.fetch(url, init));
-const settingsFile = () => join(app.getPath("userData"), "desktop-settings.json");
+const updates = installed
+  ? createInstalledUpdates(
+      electronUpdater.autoUpdater,
+      app.getVersion(),
+      (state) => {
+        if (main && !main.isDestroyed())
+          main.webContents.send("desktop:update-state", state);
+      },
+    )
+  : null;
+const checkUpdate = () =>
+  updates
+    ? updates.check()
+    : checkForUpdate(app.getVersion(), (url, init) => net.fetch(url, init));
+const settingsFile = () =>
+  join(app.getPath("userData"), "desktop-settings.json");
 async function readSettings() {
   try {
     return JSON.parse(await readFile(settingsFile(), "utf8"));
@@ -117,6 +143,29 @@ const isDownloadURL = (url) =>
 
 ipcMain.handle("desktop:version", () => app.getVersion());
 ipcMain.handle("desktop:check-update", () => checkUpdate());
+ipcMain.handle(
+  "desktop:update-state",
+  () =>
+    updates?.snapshot() ?? {
+      status: "idle",
+      current: app.getVersion(),
+      automatic: false,
+    },
+);
+ipcMain.handle("desktop:download-update", () => updates?.download());
+ipcMain.handle("desktop:install-update", async () => {
+  if (!main || updates?.snapshot().status !== "ready") return;
+  const { response } = await dialog.showMessageBox(main, {
+    type: "question",
+    title: "重启更新",
+    message: "现在重启推日并安装更新？",
+    detail: "请先保存正在编辑的内容，角色与设置会保留。",
+    buttons: ["重启并安装", "稍后"],
+    cancelId: 1,
+    defaultId: 0,
+  });
+  if (response === 0) updates?.install();
+});
 ipcMain.handle("desktop:open-download", (_event, url) => {
   if (isDownloadURL(url)) void shell.openExternal(url);
 });
@@ -133,13 +182,18 @@ async function remindUpdate() {
     message: `发现新版本 ${result.latest}（当前 ${result.current}）`,
     detail:
       (result.notes ? `${result.notes}\n\n` : "") +
-      "下载后解压，用新文件夹里的 推日.exe 打开即可；把旧版旁边的「推日数据」文件夹一起移过去就能保留数据。",
-    buttons: ["下载新版", "稍后", "跳过这个版本"],
+      (installed
+        ? "下载完成后，可在设置中重启并安装。角色和设置会自动保留。"
+        : "可下载新版安装包。首次改用安装版前，请从设置导出 JSON 备份，安装后导入；以后可在软件内更新。"),
+    buttons: [installed ? "下载更新" : "下载新版", "稍后", "跳过这个版本"],
     defaultId: 0,
     cancelId: 1,
     noLink: true,
   });
-  if (response === 0) void shell.openExternal(result.url || RELEASES_PAGE);
+  if (response === 0) {
+    if (updates) void updates.download();
+    else void shell.openExternal(result.url || RELEASES_PAGE);
+  }
   if (response === 2)
     await writeFile(
       settingsFile(),

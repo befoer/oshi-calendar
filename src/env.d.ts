@@ -9,14 +9,28 @@ declare module "lunar-javascript" {
 interface Window {
   oshiDesktop?: {
     version: () => Promise<string>;
-    checkUpdate: () => Promise<{
-      status: "latest" | "available" | "error";
-      current: string;
-      latest?: string;
-      url?: string;
-      notes?: string;
-      message?: string;
-    }>;
+    checkUpdate: () => Promise<DesktopUpdateState>;
+    updateState: () => Promise<DesktopUpdateState>;
+    downloadUpdate: () => Promise<DesktopUpdateState>;
+    installUpdate: () => Promise<void>;
+    onUpdate: (callback: (state: DesktopUpdateState) => void) => () => void;
     openDownload: (url: string) => Promise<void>;
   };
+}
+interface DesktopUpdateState {
+  status:
+    | "idle"
+    | "checking"
+    | "latest"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "error";
+  current: string;
+  automatic?: boolean;
+  latest?: string;
+  url?: string;
+  notes?: string;
+  message?: string;
+  percent?: number;
 }

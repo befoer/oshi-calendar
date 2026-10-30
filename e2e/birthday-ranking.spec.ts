@@ -43,18 +43,30 @@ test("今日榜显示五位并可刷新，同日重新打开复用缓存，窄�
   await page.goto("/");
   const ranking = page.getByRole("region", { name: "今日人气寿星" });
   await expect(ranking.getByRole("link")).toHaveCount(5);
+  await expect(ranking.locator(".ranking-position")).toHaveCount(0);
+  await ranking
+    .getByRole("button", { name: "添加到角色库：寿星 1", exact: true })
+    .click();
+  await expect(
+    ranking.getByRole("button", { name: "已在角色库：寿星 1", exact: true }),
+  ).toBeDisabled();
   await expect(ranking).toContainText("按 AniList 人气排序");
   await expect(ranking).not.toContainText("收藏人数");
   await expect(ranking.getByRole("link").first()).toHaveAttribute(
     "href",
     "https://anilist.co/character/1",
   );
-  await expect(ranking.getByRole("link").filter({ hasText: /人收藏/ })).toHaveCount(0);
+  await expect(
+    ranking.getByRole("link").filter({ hasText: /人收藏/ }),
+  ).toHaveCount(0);
   await ranking.getByRole("button", { name: "刷新排名" }).click();
   await expect(ranking.getByRole("link")).toHaveCount(5);
   const before = calls;
   await page.reload();
   await expect(ranking.getByRole("link")).toHaveCount(5);
+  await expect(
+    ranking.getByRole("button", { name: "已在角色库：寿星 1", exact: true }),
+  ).toBeDisabled();
   expect(calls).toBe(before);
   await page.screenshot({
     path: "test-results/birthday-ranking-desktop.png",

@@ -15,7 +15,7 @@
 ## 使用
 
 - **浏览器 / PWA**：安装 Node.js 22.12 或更新版本后，运行 `start.cmd`，再从浏览器菜单安装为应用。
-- **Windows 桌面版**：已发布的安装包可在 [GitHub Releases](https://github.com/befoer/oshi-calendar/releases) 获取；文件夹版启动更快，便携版为单文件。桌面版无需安装 Node.js。
+- **Windows 桌面版**：在 [GitHub Releases](https://github.com/befoer/oshi-calendar/releases) 下载安装版，支持软件内下载更新、重启安装。另提供文件夹版和单文件便携版。桌面版无需安装 Node.js。
 - **本地运行**：安装 Node.js 22.12 或更新版本，在项目目录运行：
 
 ```sh
