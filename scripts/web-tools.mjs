@@ -5,10 +5,13 @@ import { isIP } from "node:net";
 import { once } from "node:events";
 import { fetch, EnvHttpProxyAgent, ProxyAgent } from "undici";
 import { resolveNetwork } from "./network.mjs";
+import packageInfo from "../package.json" with { type: "json" };
 
 export const webVersion = "web-tools-1";
-// Bangumi 要求非浏览器请求带「开发者 ID/应用名」；项目私有，不附主页地址
-const characterUserAgent = "befoer/oshi-calendar/1.0";
+// https://github.com/bangumi/api/blob/master/docs-raw/user%20agent.md
+// 非浏览器 API 请求：开发者 ID/应用名/版本号，并附项目主页。
+const characterUserAgent =
+  `befoer/oshi-calendar/${packageInfo.version} (https://github.com/befoer/oshi-calendar)`;
 const environmentDispatcher = new EnvHttpProxyAgent({
   connect: {
     lookup(host, options, callback) {
