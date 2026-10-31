@@ -1214,7 +1214,7 @@ function SettingsView({
           <div className="setting-row">
             <div>
               <strong>已核对生日资料</strong>
-              <span>本地补齐14位示例角色，保留手动日期和冲突候选</span>
+              <span>为已关联 Bangumi 的角色补齐本地生日，保留手动日期和冲突候选</span>
             </div>
             <button
               onClick={() =>

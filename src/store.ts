@@ -21,7 +21,6 @@ import {
   type Data,
   active,
 } from "./domain";
-import { seedCharacters, seedBangumiIds, seedName } from "./seed";
 import { birthdayFromSnapshot } from "./birthday-data";
 
 class CalendarDB extends Dexie {
@@ -58,9 +57,6 @@ class CalendarDB extends Dexie {
           .toCollection()
           .modify((c) => {
             c.birthdayFetchedAt ??= "";
-            if (!c.bangumiId && c.name === seedName(c.id) && !c.birthdaySource)
-              c.bangumiId =
-                seedBangumiIds[Number(c.id.replace("seed-", "")) - 1];
           });
       });
     this.version(3)
@@ -344,7 +340,6 @@ export function initialize() {
   initialization = (async () => {
     await db.transaction("rw", db.characters, db.settings, async () => {
       if (!(await db.settings.get("main"))) {
-        await db.characters.bulkAdd(seedCharacters());
         await db.settings.add(defaults);
       }
     });
@@ -358,17 +353,7 @@ export async function restoreBirthdaySnapshot() {
   const operations: Operation[] = [];
   const expected: { collection: string; id: string; value: string }[] = [];
   for (const current of (await repository.snapshot()).characters) {
-    const linked =
-      !current.bangumiId &&
-      current.name === seedName(current.id) &&
-      !current.birthdaySource
-        ? {
-            ...current,
-            bangumiId:
-              seedBangumiIds[Number(current.id.replace("seed-", "")) - 1],
-          }
-        : current;
-    const next = birthdayFromSnapshot(linked);
+    const next = birthdayFromSnapshot(current);
     if (!next) continue;
     operations.push({ collection: "characters", action: "put", record: next });
     expected.push({

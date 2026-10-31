@@ -101,6 +101,7 @@
       "repo": "oshi-calendar",
       "releaseType": "release"
     },
+    "afterPack": "scripts/audit-package.mjs",
     "afterAllArtifactBuild": "scripts/portable-release.mjs",
     "artifactName": "oshi-calendar-${version}-folder.${ext}"
   },

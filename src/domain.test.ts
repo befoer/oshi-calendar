@@ -8,7 +8,7 @@ import {
   syncBirthdays,
 } from "./bangumi";
 import { defaults, newCharacter, compose, stamp, type Data } from "./domain";
-import { seedCharacters } from "./seed";
+import { testCharacters } from "./test-fixtures/characters";
 import { birthdayFromSnapshot } from "./birthday-data";
 import { normalizeAniList, matchAniList } from "./anilist";
 import {
@@ -142,6 +142,30 @@ beforeEach(async () => {
   await Promise.all(db.tables.map((t) => t.clear()));
   await db.settings.put(defaults);
 });
+describe("首次启动与用户资料隔离", () => {
+  it("全新资料库初始化后保持空白，不预置角色或创作记录", async () => {
+    await Promise.all(db.tables.map((t) => t.clear()));
+    await Promise.all([initialize(), initialize()]);
+    const data = await repository.snapshot();
+    expect(data.characters).toEqual([]);
+    expect(data.tasks).toEqual([]);
+    expect(data.events).toEqual([]);
+    expect(data.recommendations).toEqual([]);
+    expect(await db.logs.count()).toBe(0);
+    expect(await db.settings.get("main")).toEqual(defaults);
+    await initialize();
+    expect(await db.characters.count()).toBe(0);
+  });
+  it("已有用户角色在初始化和重复启动后保留", async () => {
+    const c = newCharacter("用户自己添加的角色", "personal_test_tag");
+    c.notes = "用户的备注";
+    await db.characters.put(c);
+    await db.settings.clear();
+    await initialize();
+    await initialize();
+    expect((await repository.snapshot()).characters).toEqual([c]);
+  });
+});
 describe("日历和原始 tag", () => {
   it("AniList备用校验月日、同名作品和生日冲突", () => {
     const ani = normalizeAniList({
@@ -160,7 +184,7 @@ describe("日历和原始 tag", () => {
         ],
       },
     });
-    const beatrice = seedCharacters()[2];
+    const beatrice = testCharacters()[2];
     expect(matchAniList(beatrice, [ani])?.id).toBe(999);
     expect(matchAniList(beatrice, [ani, { ...ani, id: 1000 }])).toBeNull();
     expect(
@@ -188,7 +212,7 @@ describe("日历和原始 tag", () => {
     ).toBe(false);
   });
   it("Bangumi失败后自动使用AniList，同时保留原始Tag", async () => {
-    const c = seedCharacters()[2];
+    const c = testCharacters()[2];
     await db.characters.put(c);
     vi.stubGlobal(
       "fetch",
@@ -231,7 +255,7 @@ describe("日历和原始 tag", () => {
     expect(saved?.presets).toEqual(c.presets);
   });
   it("启动时离线补齐已核对资料，已有生日和冲突不覆盖", async () => {
-    const characters = seedCharacters();
+    const characters = testCharacters();
     const manual = characters[1];
     manual.birthday = { month: 1, day: 2 };
     manual.birthdayConfidence = "confirmed";
@@ -272,8 +296,8 @@ describe("日历和原始 tag", () => {
     expect(result.errors.join("；")).toContain("未取得角色英文名");
     expect((await db.characters.get(c.id))?.birthday).toBeNull();
   });
-  it("预置伊莉雅关联魔法少女版本", () => {
-    expect(seedCharacters()[1].bangumiId).toBe(183099);
+  it("测试资料正确关联角色版本", () => {
+    expect(testCharacters()[1].bangumiId).toBe(183099);
   });
   it("自动采用一致月日，冲突与缺失保持待确认，手动日期保留", () => {
     const c = newCharacter("角色");
@@ -355,16 +379,18 @@ describe("日历和原始 tag", () => {
     expect(b.settings.theme).toBe("system");
     expect(b.characters[0].birthdayFetchedAt).toBe("");
   });
-  it("保留17个角色、原始转义与权重、多个形态", () => {
-    const chars = seedCharacters();
+  it("测试记录保留原始转义与权重、多个形态", () => {
+    const chars = testCharacters();
     expect(chars).toHaveLength(17);
     expect(chars[0].presets[0].positive).toBe(
-      "Roxy migurdia, ( jitome:0.8),  frills, dress, white dress, ahoge, bare shoulders",
+      "test_character, (blue_hair:0.8)",
     );
-    expect(chars[2].presets[0].positive).toBe("beatrice \\(re:zero\\)");
+    expect(chars[2].presets[0].positive).toBe(
+      "test_character \\(test_series\\)",
+    );
     expect(chars[5].presets).toHaveLength(2);
     expect(compose(chars[2].presets[0].positive, "winter")).toBe(
-      "beatrice \\(re:zero\\), winter",
+      "test_character \\(test_series\\), winter",
     );
   });
   it("跨年与闰日正确，未知生日不产生事项", () => {
@@ -487,7 +513,7 @@ describe("数据事务与备份", () => {
     await expect(repository.undo("new")).rejects.toThrow("后续修改");
   });
   it("备份恢复和引用验证，不含密钥", async () => {
-    await db.characters.bulkPut(seedCharacters());
+    await db.characters.bulkPut(testCharacters());
     const b = await exportBackup();
     expect(JSON.stringify(b)).not.toContain("test-key");
     await db.characters.clear();
