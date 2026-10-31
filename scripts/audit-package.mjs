@@ -16,9 +16,11 @@ export default async function auditPackage(context) {
     if (!allowed.test(path) || forbidden.test(path))
       throw new Error(`Unexpected file in release package: ${path}`);
     if (/^dist\/.*\.js$/.test(path)) {
-      const source = extractFile(archive, join(...path.split("/"))).toString("utf8");
+      const source = extractFile(archive, join(...path.split("/"))).toString(
+        "utf8",
+      );
       if (
-        /seed-\d|fixture-\d|test_character_\d|sk-[a-zA-Z0-9_-]{24,}|AIza[0-9A-Za-z_-]{30,}/.test(
+        /(?:\.id\s*=\s*|id\s*:\s*)["'`]seed-|seed-\d|fixture-\d|test_character_\d|sk-[a-zA-Z0-9_-]{24,}|AIza[0-9A-Za-z_-]{30,}/.test(
           source,
         )
       )
